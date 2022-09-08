@@ -128,13 +128,14 @@ pub fn clear_cache(dir: &Path, force: bool) -> Result<(), ThermiteError> {
 //    }
 
 ///
-pub fn resolve_deps(
-    deps: &Vec<impl AsRef<str>>,
-    index: &Vec<Mod>,
-) -> Result<Vec<Mod>, ThermiteError> {
+pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>, ThermiteError> {
     let mut valid = vec![];
     for dep in deps {
-        let dep_name = dep.as_ref().split('-').collect::<Vec<&str>>()[1];
+        let dep_name = dep
+            .as_ref()
+            .split('-')
+            .nth(1)
+            .ok_or_else(|| ThermiteError::DepError(dep.as_ref().into()))?;
         if let Some(d) = index.iter().find(|f| f.name == dep_name) {
             valid.push(d.clone());
         } else {

@@ -1,10 +1,11 @@
-use crate::{error::ThermiteError, model::Cache};
+use crate::model::Cache;
 use directories::ProjectDirs;
 
 pub mod actions;
 mod install;
 mod update;
-pub(crate) mod utils;
+#[allow(dead_code)]
+pub mod utils;
 
 pub use install::install;
 pub use update::{get_outdated, update};
