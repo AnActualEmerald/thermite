@@ -1,11 +1,8 @@
-use std::{fs, path::Path};
+use std::fs;
 
 use log::{debug, trace};
 
-use crate::{
-    error::ThermiteError,
-    prelude::{LocalIndex, Mod},
-};
+use crate::{error::ThermiteError, LocalIndex, Mod};
 
 use super::{actions, Ctx};
 

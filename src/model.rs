@@ -213,10 +213,19 @@ impl CachedMod {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Cache {
     re: Regex,
     pkgs: Vec<CachedMod>,
+}
+
+impl Default for Cache {
+    fn default() -> Self {
+        Self {
+            re: Regex::new("").unwrap(),
+            pkgs: vec![],
+        }
+    }
 }
 
 impl Cache {
