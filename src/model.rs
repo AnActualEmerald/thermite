@@ -213,7 +213,7 @@ impl CachedMod {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Cache {
     re: Regex,
     pkgs: Vec<CachedMod>,
