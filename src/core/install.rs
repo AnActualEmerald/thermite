@@ -17,7 +17,7 @@ use super::Ctx;
 pub async fn install(
     ctx: &mut Ctx,
     target: &mut LocalIndex,
-    mods: Vec<Mod>,
+    mods: &[Mod],
     _force: bool,
     cache: bool,
 ) -> Result<(), ThermiteError> {

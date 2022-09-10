@@ -19,12 +19,7 @@ macro_rules! g2re {
 }
 
 ///Takes the local and global installed files to display whether a mod is installed or not
-pub async fn update_index(
-    local: impl Into<Option<PathBuf>>,
-    global: impl Into<Option<PathBuf>>,
-) -> Vec<model::Mod> {
-    let local = local.into();
-    let global = global.into();
+pub async fn update_index<T: AsRef<Path>>(local: Option<T>, global: Option<T>) -> Vec<model::Mod> {
     let mut index = api::get_package_index().await.unwrap().to_vec();
 
     if let Some(local) = local {
@@ -127,7 +122,8 @@ pub fn clear_cache(dir: &Path, force: bool) -> Result<(), ThermiteError> {
 //        Some(format!("{}.{}", author, big_snake.convert(&m_name)))
 //    }
 
-///
+///Returns a list of `Mod`s publled from an index based on the dep stings
+///from Thunderstore
 pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>, ThermiteError> {
     let mut valid = vec![];
     for dep in deps {

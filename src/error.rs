@@ -13,7 +13,7 @@ pub enum ThermiteError {
     InstallError {
         m: Box<Mod>,
         path: Box<Path>,
-        source: Box<dyn std::error::Error>,
+        source: Box<dyn std::error::Error + Send + Sync>,
     },
     #[error("No such file {0:?}")]
     MissingFile(PathBuf),

@@ -1,15 +1,15 @@
-use log::{debug, warn};
+use log::{debug, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-};
 use std::{
     collections::HashMap,
     ffi::OsStr,
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
+};
+use std::{
+    collections::{hash_map::DefaultHasher, BTreeMap},
+    hash::{Hash, Hasher},
 };
 
 use crate::{core::utils, error::ThermiteError};
@@ -97,13 +97,20 @@ pub struct Manifest {
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
 pub struct LocalIndex {
     #[serde(default)]
-    pub mods: HashMap<String, LocalMod>,
+    pub mods: BTreeMap<String, LocalMod>,
     #[serde(default)]
-    pub linked: HashMap<String, LocalMod>,
+    pub linked: BTreeMap<String, LocalMod>,
     #[serde(skip)]
     path: PathBuf,
     #[serde(skip)]
     hash: u64,
+}
+
+impl Hash for LocalIndex {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.mods.hash(state);
+        self.linked.hash(state);
+    }
 }
 
 impl LocalIndex {
@@ -114,13 +121,13 @@ impl LocalIndex {
         let path = path.as_ref();
         if path.exists() {
             let raw = fs::read_to_string(path)?;
-            let hash = {
-                let mut hasher = DefaultHasher::new();
-                raw.hash(&mut hasher);
-                hasher.finish()
-            };
             let mut parsed = ron::from_str::<Self>(&raw)?;
             parsed.path = path.into();
+            let hash = {
+                let mut hasher = DefaultHasher::new();
+                parsed.hash(&mut hasher);
+                hasher.finish()
+            };
             parsed.hash = hash;
             Ok(parsed)
         } else {
@@ -131,10 +138,15 @@ impl LocalIndex {
     /// Tries to load an existing RON-format index file, or creates one if it doesn't exist
     /// # Params
     /// * path - Path to file to try to load
-    pub fn load_or_create(path: &Path) -> Self {
-        match Self::load(path) {
+    pub fn load_or_create(path: impl AsRef<Path>) -> Self {
+        match Self::load(path.as_ref()) {
             Ok(s) => s,
-            Err(_) => Self::create(path),
+            Err(_) => {
+                debug!("Creating index at {}", path.as_ref().display());
+                let s = Self::create(path.as_ref());
+                s.save().unwrap();
+                s
+            }
         }
     }
 
@@ -173,13 +185,13 @@ impl LocalIndex {
     ///
     /// Returns whether or not the index was written to disk
     pub fn save_if_changed(&self) -> bool {
-        let raw = serde_json::to_string_pretty(self).unwrap();
         let hash = {
             let mut hasher = DefaultHasher::new();
-            raw.hash(&mut hasher);
+            self.hash(&mut hasher);
             hasher.finish()
         };
 
+        trace!("Old hash: {}\nNew hash: {}", self.hash, hash);
         if hash != self.hash {
             self.save().unwrap();
             true
