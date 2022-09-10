@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test;
+mod test {}
 
 pub mod api;
 pub mod core;

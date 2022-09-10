@@ -2,7 +2,6 @@ use log::{debug, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     ffi::OsStr,
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},

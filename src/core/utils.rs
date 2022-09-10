@@ -8,7 +8,7 @@ use directories::ProjectDirs;
 use log::debug;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 #[macro_export]
 macro_rules! g2re {
