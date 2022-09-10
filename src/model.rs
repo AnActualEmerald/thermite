@@ -2,6 +2,10 @@ use log::{debug, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
+use std::{
     collections::HashMap,
     ffi::OsStr,
     fs::{self, File, OpenOptions},
@@ -98,6 +102,8 @@ pub struct LocalIndex {
     pub linked: HashMap<String, LocalMod>,
     #[serde(skip)]
     path: PathBuf,
+    #[serde(skip)]
+    hash: u64,
 }
 
 impl LocalIndex {
@@ -108,8 +114,14 @@ impl LocalIndex {
         let path = path.as_ref();
         if path.exists() {
             let raw = fs::read_to_string(path)?;
+            let hash = {
+                let mut hasher = DefaultHasher::new();
+                raw.hash(&mut hasher);
+                hasher.finish()
+            };
             let mut parsed = ron::from_str::<Self>(&raw)?;
             parsed.path = path.into();
+            parsed.hash = hash;
             Ok(parsed)
         } else {
             Err(ThermiteError::MissingFile(path.into()))
@@ -147,11 +159,32 @@ impl LocalIndex {
         fs::write(&self.path, &parsed).map_err(|e| e.into())
     }
 
+    /// Returns the parent directory of the index file if available,
+    /// or a default `PathBuf` otherwise
     pub fn parent_dir(&self) -> PathBuf {
         if let Some(p) = self.path.parent() {
             p.to_path_buf()
         } else {
             PathBuf::default()
+        }
+    }
+
+    /// Calls `LocalIndex::save` only if the index was modified
+    ///
+    /// Returns whether or not the index was written to disk
+    pub fn save_if_changed(&self) -> bool {
+        let raw = serde_json::to_string_pretty(self).unwrap();
+        let hash = {
+            let mut hasher = DefaultHasher::new();
+            raw.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        if hash != self.hash {
+            self.save().unwrap();
+            true
+        } else {
+            false
         }
     }
 
@@ -186,7 +219,9 @@ impl LocalIndex {
 
 impl Drop for LocalIndex {
     fn drop(&mut self) {
-        self.save().expect("failed to write index to disk");
+        if self.save_if_changed() {
+            debug!("Saved index at {}", self.path().display());
+        }
     }
 }
 
