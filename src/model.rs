@@ -1,6 +1,7 @@
 use log::{debug, trace, warn};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::{
     ffi::OsStr,
     fs::{self, File, OpenOptions},
@@ -161,7 +162,7 @@ impl LocalIndex {
 
     /// Save the index file
     ///
-    /// This function will be callsed when the `LocalIndex` is dropped. It shouldn't need to be called manually.
+    /// This function will be called when the `LocalIndex` is dropped. It shouldn't need to be called manually.
     pub fn save(&self) -> Result<(), ThermiteError> {
         let parsed = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::new())?;
         if let Some(p) = self.path.parent() {
@@ -353,57 +354,77 @@ impl Cache {
     }
 }
 
-// #[derive(Serialize, Deserialize, Clone, Debug)]
-// pub struct Profile {
-//     #[serde(skip)]
-//     path: Option<PathBuf>,
-//     pub name: String,
-//     pub mods: HashSet<InstalledMod>,
-// }
+// enabledmods.json
 
-// #[allow(dead_code)]
-// impl Profile {
-//     pub fn get(dir: &Path, name: &str) -> Result<Self> {
-//         let fname = format!("{}.ron", name);
-//         let path = dir.join(&fname);
-//         let raw = if path.exists() {
-//             fs::read_to_string(&path)?
-//         } else {
-//             String::new()
-//         };
-//         let mut p: Self = if raw.is_empty() {
-//             Profile {
-//                 path: None,
-//                 name: name.to_owned(),
-//                 mods: HashSet::new(),
-//             }
-//         } else {
-//             ron::from_str(&raw).with_context(|| format!("Failed to parse profile {}", fname))?
-//         };
-//         p.path = Some(path);
-//         Ok(p)
-//     }
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EnabledMods {
+    #[serde(rename = "Northstar.Client")]
+    pub client: bool,
+    #[serde(rename = "Northstar.Custom")]
+    pub custom: bool,
+    #[serde(rename = "Northstar.CustomServers")]
+    pub servers: bool,
+    #[serde(flatten)]
+    pub mods: BTreeMap<String, bool>,
+    ///Hash of the file as it was loaded
+    #[serde(skip)]
+    hash: u64
+    ///Path to the file to read & write
+    #[serde(skip)]
+    path: Option<PathBuf>
+}
 
-//     pub fn ensure_default(dir: &Path) -> Result<()> {
-//         let path = dir.join("default.ron");
-//         if !path.exists() {
-//             Profile {
-//                 path: Some(path),
-//                 name: "default".to_string(),
-//                 mods: HashSet::new(),
-//             };
-//         }
-//         info!("Created default mod profile");
-//         Ok(())
-//     }
-// }
+impl Hash for EnabledMods {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.client.hash(state);
+        self.custom.hash(state);
+        self.servers.hash(state);
+        self.mods.hash(state);
+    }
+}
 
-// //This might be a bad idea but it is incredibly convenient
-// impl Drop for Profile {
-//     fn drop(&mut self) {
-//         if let Some(p) = &self.path {
-//             let s = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::new()).unwrap();
-//             fs::write(p, &s).unwrap();
-//         }
-//     }
-// }
+impl Default for EnabledMods {
+    fn default() -> Self {
+        Self {
+            client: true,
+            custom: true,
+            servers: true,
+            mods: BTreeMap::new(),
+            hash: 0,
+            path: None
+        }
+    }
+}
+
+impl Drop for EnabledMods {
+    fn drop(&mut self) {
+        if let Some(path) = self.path {
+            let hash = {
+                let mut hasher = DefaultHasher::new();
+                self.hash(&mut hasher);
+                hasher.finish()
+            }
+
+            if hash != self.hash {
+                self.save().unwrap()
+            }
+
+        }
+    }
+}
+
+impl EnabledMods {
+    pub fn save(&self) -> Result<(), ThermiteError> {
+        let parsed = serde_json::to_string_pretty(self)?;
+        if let Some(p) = self.path.parent() {
+            fs::create_dir_all(p)?;
+        }
+        fs::write(&self.path, &parsed).map_err(|e| e.into())
+    }
+
+    pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
+        self.path = path.as_ref().to_owned();
+        self.save()
+    }
+}
+
