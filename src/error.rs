@@ -21,6 +21,8 @@ pub enum ThermiteError {
     IoError(#[from] io::Error),
     #[error("Error parsing RON")]
     RonError(#[from] ron::Error),
+    #[error("Error parsing RON")]
+    RonSpannedError(#[from] ron::error::SpannedError),
     #[error("{0}")]
     MiscError(String),
     #[error("Error downloading file: {0}")]
