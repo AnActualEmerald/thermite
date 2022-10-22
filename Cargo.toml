@@ -5,6 +5,7 @@ edition = "2021"
 description = "Library for manager Northstar mods"
 license = "MIT"
 repository = "https://gitea.greenboi.me/Emerald/thermite"
+ignore = ["commands/"]
 
 [lib]
 name = "thermite"

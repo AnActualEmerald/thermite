@@ -10,6 +10,7 @@ pub mod model;
 pub use directories::ProjectDirs;
 
 // Important functions and structs
+pub use crate::core::install_northstar;
 pub use crate::core::utils::update_index;
 pub use crate::core::{get_outdated, install, update};
 pub use crate::model::{LocalIndex, LocalMod, Mod};

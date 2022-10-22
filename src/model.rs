@@ -3,13 +3,13 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::{
+    collections::{hash_map::DefaultHasher, BTreeMap},
+    hash::{Hash, Hasher},
+};
+use std::{
     ffi::OsStr,
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
-};
-use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
-    hash::{Hash, Hasher},
 };
 
 use crate::{core::utils, error::ThermiteError};
@@ -262,6 +262,7 @@ impl CachedMod {
 
 #[derive(Debug, Clone)]
 pub struct Cache {
+    path: PathBuf,
     re: Regex,
     pkgs: Vec<CachedMod>,
 }
@@ -269,6 +270,7 @@ pub struct Cache {
 impl Default for Cache {
     fn default() -> Self {
         Self {
+            path: PathBuf::new(),
             re: Regex::new("").unwrap(),
             pkgs: vec![],
         }
@@ -297,7 +299,11 @@ impl Cache {
                 }
             }
         }
-        Ok(Cache { pkgs, re })
+        Ok(Cache {
+            path: dir.to_path_buf(),
+            pkgs,
+            re,
+        })
     }
 
     ///Cleans all cached versions of a package except the version provided
@@ -321,9 +327,9 @@ impl Cache {
     }
 
     ///Checks if a path is in the current cache
-    pub fn check(&self, path: &Path) -> Option<File> {
-        if self.has(path) {
-            self.open_file(path)
+    pub fn check(&self, path: impl AsRef<Path>) -> Option<File> {
+        if self.has(path.as_ref()) {
+            self.open_file(path.as_ref())
         } else {
             None
         }
@@ -352,6 +358,10 @@ impl Cache {
             None
         }
     }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 // enabledmods.json
@@ -368,10 +378,10 @@ pub struct EnabledMods {
     pub mods: BTreeMap<String, bool>,
     ///Hash of the file as it was loaded
     #[serde(skip)]
-    hash: u64
+    hash: u64,
     ///Path to the file to read & write
     #[serde(skip)]
-    path: Option<PathBuf>
+    path: Option<PathBuf>,
 }
 
 impl Hash for EnabledMods {
@@ -391,24 +401,23 @@ impl Default for EnabledMods {
             servers: true,
             mods: BTreeMap::new(),
             hash: 0,
-            path: None
+            path: None,
         }
     }
 }
 
 impl Drop for EnabledMods {
     fn drop(&mut self) {
-        if let Some(path) = self.path {
+        if let Some(_) = &self.path {
             let hash = {
                 let mut hasher = DefaultHasher::new();
                 self.hash(&mut hasher);
                 hasher.finish()
-            }
+            };
 
             if hash != self.hash {
                 self.save().unwrap()
             }
-
         }
     }
 }
@@ -416,15 +425,19 @@ impl Drop for EnabledMods {
 impl EnabledMods {
     pub fn save(&self) -> Result<(), ThermiteError> {
         let parsed = serde_json::to_string_pretty(self)?;
-        if let Some(p) = self.path.parent() {
-            fs::create_dir_all(p)?;
+        if let Some(path) = &self.path {
+            if let Some(p) = path.parent() {
+                fs::create_dir_all(p)?;
+            }
+
+            fs::write(&path, &parsed)?;
         }
-        fs::write(&self.path, &parsed).map_err(|e| e.into())
+
+        Ok(())
     }
 
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
-        self.path = path.as_ref().to_owned();
+        self.path = Some(path.as_ref().to_owned());
         self.save()
     }
 }
-
