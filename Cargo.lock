@@ -555,7 +555,7 @@ checksum = "68783febc7782c6c5cb401fbda4de5a9898be1762314da0bb2c10ced61f18b0c"
 
 [[package]]
 name = "libthermite"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "directories",
  "futures-util",

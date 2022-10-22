@@ -408,7 +408,7 @@ impl Default for EnabledMods {
 
 impl Drop for EnabledMods {
     fn drop(&mut self) {
-        if let Some(_) = &self.path {
+        if self.path.is_some() {
             let hash = {
                 let mut hasher = DefaultHasher::new();
                 self.hash(&mut hasher);
