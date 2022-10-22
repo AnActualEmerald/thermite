@@ -1,11 +1,11 @@
 [package]
 name = "libthermite"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Library for manager Northstar mods"
 license = "MIT"
 repository = "https://gitea.greenboi.me/Emerald/thermite"
-ignore = ["commands/"]
+exclude = ["commands/"]
 
 [lib]
 name = "thermite"
