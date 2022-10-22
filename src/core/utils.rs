@@ -2,7 +2,7 @@ use crate::api;
 use crate::error::ThermiteError;
 use crate::model;
 use crate::model::LocalIndex;
-use crate::model::Mod;
+use crate::model::ModVersion;
 use crate::model::SubMod;
 use directories::ProjectDirs;
 use log::debug;
@@ -29,7 +29,7 @@ pub async fn update_index<T: AsRef<Path>>(local: Option<T>, global: Option<T>) -
                 e.installed = installed
                     .mods
                     .iter()
-                    .any(|(n, f)| n == &e.name && f.version == e.version);
+                    .any(|(n, f)| n == &e.name && f.version == e.latest);
             }
         }
     }
@@ -41,7 +41,7 @@ pub async fn update_index<T: AsRef<Path>>(local: Option<T>, global: Option<T>) -
                 e.global = glob
                     .mods
                     .iter()
-                    .any(|(n, f)| n == &e.name && f.version == e.version);
+                    .any(|(n, f)| n == &e.name && f.version == e.latest);
             }
         }
     }
@@ -124,7 +124,10 @@ pub fn clear_cache(dir: &Path, force: bool) -> Result<(), ThermiteError> {
 
 ///Returns a list of `Mod`s publled from an index based on the dep stings
 ///from Thunderstore
-pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>, ThermiteError> {
+pub fn resolve_deps(
+    deps: &[impl AsRef<str>],
+    index: &[ModVersion],
+) -> Result<Vec<ModVersion>, ThermiteError> {
     let mut valid = vec![];
     for dep in deps {
         let dep_name = dep

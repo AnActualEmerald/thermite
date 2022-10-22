@@ -1,7 +1,7 @@
 use crate::{
     core::actions,
     error::ThermiteError,
-    model::{LocalIndex, Mod},
+    model::{LocalIndex, ModVersion},
 };
 
 use log::{debug, error, trace};
@@ -17,7 +17,7 @@ use super::Ctx;
 pub async fn install(
     ctx: &mut Ctx,
     target: &mut LocalIndex,
-    mods: &[Mod],
+    mods: &[&ModVersion],
     _force: bool,
     cache: bool,
 ) -> Result<(), ThermiteError> {

@@ -1,7 +1,33 @@
+use std::collections::{BTreeMap, HashMap};
+
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{error::ThermiteError, model::Mod};
+use crate::{
+    error::ThermiteError,
+    model::{Mod, ModVersion},
+};
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct PackageListing {
+    name: String,
+    versions: Vec<PackageVersion>,
+    #[serde(flatten)]
+    _extra: HashMap<String, Value>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct PackageVersion {
+    dependencies: Vec<String>,
+    description: String,
+    download_url: String,
+    file_size: u64,
+    version_number: String,
+
+    #[serde(flatten)]
+    _extra: HashMap<String, Value>,
+}
 
 pub async fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
     let client = Client::new();
@@ -11,10 +37,8 @@ pub async fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
         .send()
         .await?;
     if raw.status().is_success() {
-        let parsed: Value = serde_json::from_str(&raw.text().await.unwrap())?;
-        let index = map_response(&parsed).ok_or_else(|| {
-            ThermiteError::MiscError("Thunderstore response was malformed".into())
-        })?;
+        let parsed: Vec<PackageListing> = serde_json::from_str(&raw.text().await.unwrap())?;
+        let index = map_response(&parsed);
 
         Ok(index)
     } else {
@@ -22,40 +46,40 @@ pub async fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
     }
 }
 
-fn map_response(res: &Value) -> Option<Vec<Mod>> {
-    match res {
-        Value::Array(v) => Some(
-            v.iter()
-                .map(|e| {
-                    let name = e["name"].as_str().unwrap().to_string();
-                    let latest = e["versions"][0].clone();
-                    let version = latest["version_number"].as_str().unwrap().to_string();
-                    let url = latest["download_url"].as_str().unwrap().to_string();
-                    let file_size = latest["file_size"].as_i64().unwrap();
-                    let desc = latest["description"].as_str().unwrap().to_string();
-                    let deps = if let Value::Array(d) = &latest["dependencies"] {
-                        d.iter()
-                            .map(|e| e.as_str().unwrap().to_string())
-                            .filter(|e| !e.starts_with("northstar-Northstar")) //Don't try to install northstar for any mods that "depend" on it
-                            .collect()
-                    } else {
-                        vec![]
-                    };
+fn map_response(res: &[PackageListing]) -> Vec<Mod> {
+    res.iter()
+        .map(|e| {
+            let versions = &e.versions;
+            let latest = versions[0].clone();
+            let mut urls = BTreeMap::new();
 
-                    Mod {
-                        name,
-                        version,
-                        url,
-                        deps,
-                        desc,
-                        file_size,
-                        installed: false,
-                        global: false,
-                        upgradable: false,
-                    }
-                })
-                .collect(),
-        ),
-        _ => None,
-    }
+            for v in versions {
+                urls.insert(
+                    v.version_number.clone(),
+                    ModVersion {
+                        name: e.name.clone(),
+                        version: v.version_number.clone(),
+                        desc: v.description.clone(),
+                        file_size: v.file_size,
+                        deps: v
+                            .dependencies
+                            .iter()
+                            .filter(|e| *e == "northstar-Northar")
+                            .cloned()
+                            .collect::<Vec<String>>(),
+                        url: v.download_url.clone(),
+                    },
+                );
+            }
+
+            Mod {
+                name: e.name.clone(),
+                latest: latest.version_number,
+                versions: urls,
+                installed: false,
+                global: false,
+                upgradable: false,
+            }
+        })
+        .collect()
 }

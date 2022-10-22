@@ -5,13 +5,13 @@ use std::{
 
 use thiserror::Error;
 
-use crate::model::Mod;
+use crate::model::ModVersion;
 
 #[derive(Error, Debug)]
 pub enum ThermiteError {
     #[error("Error while installing mod {0}", m.name)]
     InstallError {
-        m: Box<Mod>,
+        m: Box<ModVersion>,
         path: Box<Path>,
         source: Box<dyn std::error::Error + Send + Sync>,
     },

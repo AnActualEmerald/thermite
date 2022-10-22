@@ -17,19 +17,29 @@ use crate::{core::utils, error::ThermiteError};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mod {
     pub name: String,
+    ///The latest version of the mod
+    pub latest: String,
+    #[serde(default)]
+    pub installed: bool,
+    #[serde(default)]
+    pub upgradable: bool,
+    #[serde(default)]
+    pub global: bool,
+    ///A map of each version of a mod
+    pub versions: BTreeMap<String, ModVersion>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ModVersion {
+    pub name: String,
     pub version: String,
     pub url: String,
     pub desc: String,
     pub deps: Vec<String>,
-    pub file_size: i64,
-    #[serde(default)]
-    pub installed: bool,
-    pub global: bool,
-    #[serde(default)]
-    pub upgradable: bool,
+    pub file_size: u64,
 }
 
-impl Mod {
+impl ModVersion {
     pub fn file_size_string(&self) -> String {
         if self.file_size / 1_000_000 >= 1 {
             let size = self.file_size as f64 / 1_048_576f64;

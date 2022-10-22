@@ -2,7 +2,7 @@ use std::fs;
 
 use log::{debug, trace};
 
-use crate::{error::ThermiteError, LocalIndex, Mod};
+use crate::{error::ThermiteError, LocalIndex, Mod, ModVersion};
 
 use super::{actions, Ctx};
 
@@ -13,7 +13,7 @@ use super::{actions, Ctx};
 /// * target - the index file to target
 pub async fn update(
     ctx: &mut Ctx,
-    outdated: &[Mod],
+    outdated: &[ModVersion],
     target: &mut LocalIndex,
 ) -> Result<(), ThermiteError> {
     let mut downloaded = vec![];
@@ -69,14 +69,19 @@ pub async fn update(
 /// # Params
 /// * index - a list of `Mod`s. Should be retreived from thermite::update_index.
 /// * target - the `LocalIndex` to check against
-pub async fn get_outdated(index: &[Mod], target: &LocalIndex) -> Vec<Mod> {
+pub async fn get_outdated(index: &[Mod], target: &LocalIndex) -> Vec<ModVersion> {
     index
         .iter()
-        .filter(|e| {
-            target
+        .filter_map(|e| {
+            if target
                 .mods
                 .iter()
-                .any(|(n, i)| n.trim() == e.name.trim() && i.version.trim() != e.version.trim())
+                .any(|(n, i)| n.trim() == e.name.trim() && i.version.trim() != e.latest.trim())
+            {
+                e.versions.get(&e.latest)
+            } else {
+                None
+            }
         })
         .cloned()
         .collect()

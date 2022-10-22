@@ -7,7 +7,7 @@ use std::{
 use log::{debug, trace};
 use zip::ZipArchive;
 
-use crate::{core::actions, error::ThermiteError, model::Cache, Mod};
+use crate::{core::actions, error::ThermiteError, model::Cache, ModVersion};
 
 use super::{utils, Ctx};
 
@@ -23,15 +23,24 @@ pub async fn install_northstar(ctx: Ctx, game_path: &Path) -> Result<String, The
             ThermiteError::MiscError("Unable to find Northstar in Thunderstore index".to_string())
         })?;
 
-    do_install(&ctx.cache, nmod, game_path).await?;
+    do_install(
+        &ctx.cache,
+        nmod.versions.get(&nmod.latest).unwrap(),
+        game_path,
+    )
+    .await?;
 
-    Ok(nmod.version.clone())
+    Ok(nmod.latest.clone())
 }
 
 ///Install N* from the provided mod
 ///
 ///Checks cache, else downloads the latest version
-async fn do_install(cache: &Cache, nmod: &Mod, game_path: &Path) -> Result<(), ThermiteError> {
+async fn do_install(
+    cache: &Cache,
+    nmod: &ModVersion,
+    game_path: &Path,
+) -> Result<(), ThermiteError> {
     let filename = format!("northstar-{}.zip", nmod.version);
     let nfile = if let Some(f) = cache.check(Path::new(&filename)) {
         debug!("Using cached version of Northstar");
