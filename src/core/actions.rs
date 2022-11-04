@@ -6,7 +6,7 @@ use std::{
     time::SystemTime,
 };
 
-use crate::error::ThermiteError;
+use crate::{core::utils::TempDir, error::ThermiteError};
 
 use futures_util::StreamExt;
 use indicatif::ProgressBar;
@@ -111,6 +111,7 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
             .as_secs()
             .to_string(),
     );
+    let temp_dir = TempDir::create(&temp_dir)?;
     {
         let mut archive = ZipArchive::new(zip_file)?;
 
@@ -119,10 +120,9 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
             .read_to_string(&mut manifest)
             .unwrap();
 
-        fs::create_dir_all(&temp_dir)?;
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).unwrap();
-            let out = temp_dir.join(file.enclosed_name().unwrap());
+            let out = temp_dir.path.join(file.enclosed_name().unwrap());
 
             if file.enclosed_name().unwrap().starts_with(".") {
                 debug!("Skipping hidden file {}", out.display());
@@ -155,7 +155,7 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
         }
     }
     let mut mods = vec![];
-    if let Ok(entries) = temp_dir.read_dir() {
+    if let Ok(entries) = temp_dir.path.read_dir() {
         for e in entries {
             let e = e.unwrap();
 
@@ -193,8 +193,8 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
 
     // move the mod files from the temp dir to the real dir
     for p in mods.iter_mut() {
-        let temp = temp_dir.join(&p.path);
-        p.path = p.path.strip_prefix("mods").unwrap().to_path_buf();
+        let temp = temp_dir.path.join(&p.path);
+        p.path = p.path.strip_prefix("mods")?.to_path_buf();
         let perm = mods_dir.join(&p.path);
         trace!(
             "Temp path: {} | Perm path: {}",
@@ -209,8 +209,6 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
     }
 
     let manifest: Manifest = serde_json::from_str(&manifest)?;
-
-    fs::remove_dir_all(&temp_dir)?;
 
     Ok(LocalMod {
         package_name: manifest.name,

@@ -6,9 +6,11 @@ use crate::model::ModVersion;
 use crate::model::SubMod;
 use directories::ProjectDirs;
 use log::debug;
+use log::error;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::path::Path;
+use std::path::PathBuf;
 
 #[macro_export]
 macro_rules! g2re {
@@ -16,6 +18,31 @@ macro_rules! g2re {
         let re = $e.replace('*', ".*");
         regex::Regex::new(&re)
     }};
+}
+
+pub struct TempDir {
+    pub path: PathBuf,
+}
+
+impl TempDir {
+    pub fn create(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
+        fs::create_dir_all(path.as_ref())?;
+        Ok(TempDir {
+            path: path.as_ref().to_path_buf(),
+        })
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        if let Err(e) = fs::remove_dir_all(&self.path) {
+            error!(
+                "Error removing temp directory at '{}': {}",
+                self.path.display(),
+                e
+            );
+        }
+    }
 }
 
 ///Takes the local and global installed files to display whether a mod is installed or not

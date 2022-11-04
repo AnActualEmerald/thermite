@@ -1,6 +1,6 @@
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, StripPrefixError},
 };
 
 use thiserror::Error;
@@ -33,4 +33,6 @@ pub enum ThermiteError {
     JsonError(#[from] serde_json::Error),
     #[error("Error resolving dependency {0}")]
     DepError(String),
+    #[error("Error stripping directory prefix {0}\nIs the mod formatted correctly?")]
+    PrefixError(#[from] StripPrefixError),
 }
