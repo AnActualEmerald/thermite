@@ -36,6 +36,8 @@ pub struct ModVersion {
     pub url: String,
     pub desc: String,
     pub deps: Vec<String>,
+    pub installed: bool,
+    pub global: bool,
     pub file_size: u64,
 }
 
@@ -440,7 +442,7 @@ impl EnabledMods {
                 fs::create_dir_all(p)?;
             }
 
-            fs::write(&path, &parsed)?;
+            fs::write(path, &parsed)?;
         }
 
         Ok(())

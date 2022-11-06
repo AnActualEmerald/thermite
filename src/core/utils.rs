@@ -53,10 +53,16 @@ pub async fn update_index<T: AsRef<Path>>(local: Option<T>, global: Option<T>) -
         let installed = LocalIndex::load(local);
         for e in index.iter_mut() {
             if let Ok(installed) = &installed {
-                e.installed = installed
-                    .mods
-                    .iter()
-                    .any(|(n, f)| n == &e.name && f.version == e.latest);
+                for (name, i) in installed.mods.iter() {
+                    if &e.name == name {
+                        e.installed = true;
+                        if e.versions.contains_key(&i.version) {
+                            if let Some(v) = e.versions.get_mut(&i.version) {
+                                v.installed = true;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -65,10 +71,16 @@ pub async fn update_index<T: AsRef<Path>>(local: Option<T>, global: Option<T>) -
         let glob = LocalIndex::load(global);
         for e in index.iter_mut() {
             if let Ok(glob) = &glob {
-                e.global = glob
-                    .mods
-                    .iter()
-                    .any(|(n, f)| n == &e.name && f.version == e.latest);
+                for (name, i) in glob.mods.iter() {
+                    if &e.name == name {
+                        e.global = true;
+                        if e.versions.contains_key(&i.version) {
+                            if let Some(v) = e.versions.get_mut(&i.version) {
+                                v.global = true;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

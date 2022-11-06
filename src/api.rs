@@ -67,6 +67,8 @@ fn map_response(res: &[PackageListing]) -> Vec<Mod> {
                             .filter(|e| *e == "northstar-Northar")
                             .cloned()
                             .collect::<Vec<String>>(),
+                        installed: false,
+                        global: false,
                         url: v.download_url.clone(),
                     },
                 );

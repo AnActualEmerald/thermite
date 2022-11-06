@@ -74,7 +74,7 @@ fn extract(zip_file: &File, target: &Path) -> Result<(), ThermiteError> {
                 fs::create_dir_all(target.join(f.name()))?;
                 continue;
             } else if let Some(p) = out.parent() {
-                fs::create_dir_all(&p)?;
+                fs::create_dir_all(p)?;
             }
 
             let mut outfile = OpenOptions::new()
