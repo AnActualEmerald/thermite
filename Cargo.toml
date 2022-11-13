@@ -13,13 +13,10 @@ name = "thermite"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-directories = "4.0.1"
 futures-util = "0.3.25"
 indicatif = "0.17.1"
 log = "0.4.17"
-regex = "1.6.0"
 reqwest = { version = "0.11.12", features = ["stream"] }
-ron = "0.8.0"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"
 thiserror = "1.0.37"
