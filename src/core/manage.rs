@@ -199,7 +199,7 @@ where
     for p in mods.iter_mut() {
         let temp = temp_dir.path.join(&p);
         let p = p.strip_prefix("mods")?;
-        let perm = mods_dir.join(&p);
+        let perm = mods_dir.join(p);
         trace!(
             "Temp path: {} | Perm path: {}",
             temp.display(),
