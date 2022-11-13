@@ -1,7 +1,7 @@
 use std::{
     cmp::min,
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Write},
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -96,30 +96,43 @@ pub fn uninstall(mods: Vec<&PathBuf>) -> Result<(), ThermiteError> {
 /// # Params
 /// * zip_file - compressed mod file
 /// * target_dir - directory to install to
+/// * extract_dir - directory to extract to before installing. Defaults to a temp directory in `target_dir`
+/// * sanity_check - function that will be called before performing the installation. The operation will fail with `ThermiteError::SanityError` if this returns `false`
+///     - takes `File` of the zip file
+///     - returns `bool`
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<(), ThermiteError> {
+pub fn install_with_sanity<F>(
+    zip_file: &File,
+    target_dir: impl AsRef<Path>,
+    extract_dir: Option<&Path>,
+    sanity_check: F,
+) -> Result<(), ThermiteError>
+where
+    F: FnOnce(&File) -> bool,
+{
+    let target_dir = target_dir.as_ref();
+    if !sanity_check(zip_file) {
+        return Err(ThermiteError::SanityError);
+    }
     debug!("Starting mod insall");
     let mods_dir = target_dir.canonicalize()?;
-    //Get the package manifest
-    let mut manifest = String::new();
     //Extract mod to a temp directory so that we can easily see any sub-mods
     //This wouldn't be needed if the ZipArchive recreated directories, but oh well
-    let temp_dir = mods_dir.join(
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            .to_string(),
-    );
+    let temp_dir = if let Some(p) = extract_dir {
+        p.to_path_buf()
+    } else {
+        mods_dir.join(
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .to_string(),
+        )
+    };
     let temp_dir = TempDir::create(&temp_dir)?;
     {
         let mut archive = ZipArchive::new(zip_file)?;
-
-        archive
-            .by_name("manifest.json")?
-            .read_to_string(&mut manifest)
-            .unwrap();
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).unwrap();
@@ -128,13 +141,6 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<(), ThermiteErr
             if file.enclosed_name().unwrap().starts_with(".") {
                 debug!("Skipping hidden file {}", out.display());
                 continue;
-            }
-
-            if let Some(e) = out.extension() {
-                if out.exists() && e == std::ffi::OsStr::new("cfg") {
-                    debug!("Skipping existing config file {}", out.display());
-                    continue;
-                }
             }
 
             debug!("Extracting file to {}", out.display());
@@ -207,6 +213,16 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<(), ThermiteErr
     }
 
     Ok(())
+}
+
+/// Install a mod to a directory
+/// # Params
+/// * zip_file - compressed mod file
+/// * target_dir - directory to install to
+///
+/// `target_dir` will be treated as the root of the `mods` directory in the mod file
+pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<(), ThermiteError> {
+    install_with_sanity(zip_file, target_dir, None, |_| true)
 }
 
 /// Install N* to the provided path

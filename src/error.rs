@@ -1,20 +1,12 @@
 use std::{
     io,
-    path::{Path, PathBuf, StripPrefixError},
+    path::{PathBuf, StripPrefixError},
 };
 
 use thiserror::Error;
 
-use crate::model::ModVersion;
-
 #[derive(Error, Debug)]
 pub enum ThermiteError {
-    #[error("Error while installing mod {0}", m.name)]
-    InstallError {
-        m: Box<ModVersion>,
-        path: Box<Path>,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
     #[error("No such file {0:?}")]
     MissingFile(PathBuf),
     #[error(transparent)]
@@ -31,4 +23,6 @@ pub enum ThermiteError {
     DepError(String),
     #[error("Error stripping directory prefix {0}\nIs the mod formatted correctly?")]
     PrefixError(#[from] StripPrefixError),
+    #[error("Sanity check failed")]
+    SanityError,
 }
