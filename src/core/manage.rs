@@ -14,11 +14,6 @@ use indicatif::ProgressBar;
 use reqwest::Client;
 use zip::ZipArchive;
 
-use crate::{
-    model::SubMod,
-    model::{LocalMod, Manifest},
-};
-
 use log::{debug, error, trace};
 
 /// Download a file and update a progress bar
@@ -97,7 +92,13 @@ pub fn uninstall(mods: Vec<&PathBuf>) -> Result<(), ThermiteError> {
     Ok(())
 }
 
-pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, ThermiteError> {
+/// Install a mod to a directory
+/// # Params
+/// * zip_file - compressed mod file
+/// * target_dir - directory to install to
+///
+/// `target_dir` will be treated as the root of the `mods` directory in the mod file
+pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<(), ThermiteError> {
     debug!("Starting mod insall");
     let mods_dir = target_dir.canonicalize()?;
     //Get the package manifest
@@ -169,17 +170,14 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
                         let name = e.file_name();
                         let name = name.to_str().unwrap();
                         debug!("Add submod {}", name);
-                        mods.push(SubMod::new(name, &Path::new("mods").join(name)));
+                        mods.push(Path::new("mods").join(name));
                     }
                 } else {
                     debug!(
                         "Add one submod {}",
                         e.path().file_name().unwrap().to_string_lossy()
                     );
-                    mods.push(SubMod::new(
-                        e.file_name().to_str().unwrap(),
-                        &PathBuf::new(),
-                    ));
+                    mods.push(PathBuf::new());
                 }
             }
         }
@@ -193,9 +191,9 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
 
     // move the mod files from the temp dir to the real dir
     for p in mods.iter_mut() {
-        let temp = temp_dir.path.join(&p.path);
-        p.path = p.path.strip_prefix("mods")?.to_path_buf();
-        let perm = mods_dir.join(&p.path);
+        let temp = temp_dir.path.join(&p);
+        let p = p.strip_prefix("mods")?;
+        let perm = mods_dir.join(&p);
         trace!(
             "Temp path: {} | Perm path: {}",
             temp.display(),
@@ -208,13 +206,51 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
         fs::rename(temp, perm)?;
     }
 
-    let manifest: Manifest = serde_json::from_str(&manifest)?;
+    Ok(())
+}
 
-    Ok(LocalMod {
-        package_name: manifest.name,
-        version: manifest.version_number,
-        mods,
-        depends_on: vec![],
-        needed_by: vec![],
-    })
+/// Install N* to the provided path
+///
+/// # Params
+/// * zip_file - compressed mod file
+/// * game_path - the path of the Titanfall 2 install
+pub async fn install_northstar(
+    zip_file: &File,
+    game_path: impl AsRef<Path>,
+) -> Result<(), ThermiteError> {
+    let target = game_path.as_ref();
+    let mut archive = ZipArchive::new(zip_file)?;
+    for i in 0..archive.len() {
+        let mut f = archive.by_index(i).unwrap();
+
+        //This should work fine for N* because the dir structure *should* always be the same
+        if f.enclosed_name().unwrap().starts_with("Northstar") {
+            let out = target.join(
+                f.enclosed_name()
+                    .unwrap()
+                    .strip_prefix("Northstar")
+                    .unwrap(),
+            );
+
+            if (*f.name()).ends_with('/') {
+                trace!("Create directory {}", f.name());
+                fs::create_dir_all(target.join(f.name()))?;
+                continue;
+            } else if let Some(p) = out.parent() {
+                fs::create_dir_all(p)?;
+            }
+
+            let mut outfile = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(&out)?;
+
+            trace!("Write file {}", out.display());
+
+            io::copy(&mut f, &mut outfile)?;
+        }
+    }
+
+    Ok(())
 }

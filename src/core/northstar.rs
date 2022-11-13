@@ -4,6 +4,7 @@ use std::{
     path::Path,
 };
 
+use crate::api;
 use log::{debug, trace};
 use zip::ZipArchive;
 
@@ -14,8 +15,8 @@ use super::{utils, Ctx};
 ///Install N* to the provided path
 ///
 ///Returns the version that was installed
-pub async fn install_northstar(ctx: Ctx, game_path: &Path) -> Result<String, ThermiteError> {
-    let index = utils::update_index::<&Path>(None, None).await;
+pub async fn install_northstar(game_path: impl AsRef<Path>) -> Result<String, ThermiteError> {
+    let index = api::get_package_index();
     let nmod = index
         .iter()
         .find(|f| f.name.to_lowercase() == "northstar")

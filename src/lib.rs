@@ -22,11 +22,6 @@ pub mod core;
 pub mod error;
 pub mod model;
 
-// Re-exports
-pub use directories::ProjectDirs;
-
 // Important functions and structs
-pub use crate::core::install_northstar;
-pub use crate::core::utils::update_index;
-pub use crate::core::{get_outdated, install, update, Ctx};
-pub use crate::model::{LocalIndex, LocalMod, Mod, ModVersion};
+pub use crate::core::manage::*;
+pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
