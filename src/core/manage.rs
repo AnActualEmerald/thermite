@@ -136,6 +136,10 @@ where
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).unwrap();
+            if file.enclosed_name().is_none() {
+                trace!("Skip missing enclosed name '{}'", file.name());
+                continue;
+            }
             let out = temp_dir.path.join(file.enclosed_name().unwrap());
 
             if file.enclosed_name().unwrap().starts_with(".") {

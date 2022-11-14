@@ -64,7 +64,7 @@ fn map_response(res: &[PackageListing]) -> Vec<Mod> {
                         deps: v
                             .dependencies
                             .iter()
-                            .filter(|e| *e == "northstar-Northar")
+                            .filter(|e| *e != "northstar-Northstar")
                             .cloned()
                             .collect::<Vec<String>>(),
                         installed: false,
