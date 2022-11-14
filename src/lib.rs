@@ -9,13 +9,13 @@
 //!     let mut ctx = Ctx::new(ProjectDirs::from("com", "YourOrg", "YourApp").unwrap());
 //!     if let Some(md) = index.iter().find(|e| e.name == "server_utilities") {
 //!         let latest = md.versions.get(&md.latest).unwrap();
-//!         install(&mut ctx, &mut target, &[&latest], false, true).await.unwrap();
+//!         install(&mut ctx, &mut target, &[latest.clone()], false, true).await.unwrap();
 //!     }    
 //! }
 //! ```
 
 #[cfg(test)]
-mod test {}
+mod test;
 
 pub mod api;
 pub mod core;
