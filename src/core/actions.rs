@@ -19,7 +19,7 @@ use crate::{
     model::{LocalMod, Manifest},
 };
 
-use log::{debug, error, trace};
+use log::{debug, error, trace, warn};
 
 /// Download a file and update a progress bar
 /// # Params
@@ -161,7 +161,7 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
     let mut mods = vec![];
     if let Ok(entries) = temp_dir.path.read_dir() {
         for e in entries {
-            let e = e.unwrap();
+            let e = e?;
 
             if e.path().is_dir() {
                 //Get the path relative to the .papa.ron file
@@ -198,7 +198,14 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
     // move the mod files from the temp dir to the real dir
     for p in mods.iter_mut() {
         let temp = temp_dir.path.join(&p.path);
-        p.path = p.path.strip_prefix("mods")?.to_path_buf();
+        if p.path.starts_with("mods") {
+            p.path = p.path.strip_prefix("mods")?.to_path_buf();
+        } else {
+            warn!(
+                "Directory not wrapped in 'mods' directory: {}",
+                p.path.display()
+            );
+        }
         let perm = mods_dir.join(&p.path);
         trace!(
             "Temp path: {} | Perm path: {}",
@@ -206,6 +213,7 @@ pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<LocalMod, Therm
             perm.display()
         );
 
+        //nuke the existing mod if it's there
         if perm.exists() {
             fs::remove_dir_all(&perm)?;
         }
