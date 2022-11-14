@@ -225,7 +225,7 @@ where
 /// * target_dir - directory to install to
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_mod(zip_file: &File, target_dir: &Path) -> Result<(), ThermiteError> {
+pub fn install_mod(zip_file: &File, target_dir: impl AsRef<Path>) -> Result<(), ThermiteError> {
     install_with_sanity(zip_file, target_dir, None, |_| true)
 }
 
