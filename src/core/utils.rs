@@ -1,5 +1,6 @@
 use crate::error::ThermiteError;
 use crate::model::EnabledMods;
+use crate::model::Mod;
 use crate::model::ModJSON;
 use crate::model::ModVersion;
 use log::error;
@@ -34,10 +35,7 @@ impl Drop for TempDir {
 
 ///Returns a list of `Mod`s publled from an index based on the dep stings
 ///from Thunderstore
-pub fn resolve_deps(
-    deps: &[impl AsRef<str>],
-    index: &[ModVersion],
-) -> Result<Vec<ModVersion>, ThermiteError> {
+pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>, ThermiteError> {
     let mut valid = vec![];
     for dep in deps {
         let dep_name = dep
