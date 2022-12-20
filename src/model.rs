@@ -148,7 +148,7 @@ impl EnabledMods {
                 fs::create_dir_all(p)?;
             }
 
-            fs::write(path, &parsed)?;
+            fs::write(path, parsed)?;
         }
 
         Ok(())

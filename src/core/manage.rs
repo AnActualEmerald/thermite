@@ -131,7 +131,7 @@ where
         )
     };
 
-    let temp_dir = TempDir::create(&temp_dir)?;
+    let temp_dir = TempDir::create(temp_dir)?;
     {
         let mut archive = ZipArchive::new(zip_file)?;
 
