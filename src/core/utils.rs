@@ -2,9 +2,10 @@ use crate::error::ThermiteError;
 use crate::model::EnabledMods;
 use crate::model::Mod;
 use crate::model::ModJSON;
-use crate::model::ModVersion;
+
 use log::error;
 use std::fs;
+use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -18,6 +19,14 @@ impl TempDir {
         Ok(TempDir {
             path: path.as_ref().to_path_buf(),
         })
+    }
+}
+
+impl Deref for TempDir {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        &self.path
     }
 }
 

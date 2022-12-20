@@ -130,6 +130,7 @@ where
                 .to_string(),
         )
     };
+
     let temp_dir = TempDir::create(&temp_dir)?;
     {
         let mut archive = ZipArchive::new(zip_file)?;
@@ -140,7 +141,7 @@ where
                 trace!("Skip missing enclosed name '{}'", file.name());
                 continue;
             }
-            let out = temp_dir.path.join(file.enclosed_name().unwrap());
+            let out = temp_dir.join(file.enclosed_name().unwrap());
 
             if file.enclosed_name().unwrap().starts_with(".") {
                 debug!("Skipping hidden file {}", out.display());
@@ -199,6 +200,8 @@ where
         ));
     }
 
+    let manifest = temp_dir.join("manifest.json");
+
     // move the mod files from the temp dir to the real dir
     for p in mods.iter_mut() {
         let temp = temp_dir.path.join(&p);
@@ -213,7 +216,11 @@ where
         if perm.exists() {
             fs::remove_dir_all(&perm)?;
         }
-        fs::rename(temp, perm)?;
+        fs::rename(&temp, &perm)?;
+        if manifest.try_exists()? {
+            let target = perm.join("manifest.json");
+            fs::copy(&manifest, target)?;
+        }
     }
 
     Ok(())
