@@ -42,6 +42,10 @@ impl Mod {
     pub fn get_latest(&self) -> Option<&ModVersion> {
         self.versions.get(&self.latest)
     }
+
+    pub fn get_version(&self, version: impl AsRef<str>) -> Option<&ModVersion> {
+        self.versions.get(version.as_ref())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
