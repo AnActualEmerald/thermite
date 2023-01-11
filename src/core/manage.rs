@@ -102,7 +102,8 @@ pub fn uninstall(mods: Vec<&PathBuf>) -> Result<(), ThermiteError> {
 ///     - returns `bool`
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_with_sanity<F>(
+pub fn install_with_sanity<'a, F>(
+    author: impl Into<&'a str>,
     zip_file: &File,
     target_dir: impl AsRef<Path>,
     extract_dir: Option<&Path>,
@@ -200,13 +201,13 @@ where
         ));
     }
 
-    let manifest = temp_dir.join("manifest.json");
-
+    let author = author.into();
     // move the mod files from the temp dir to the real dir
     for p in mods.iter_mut() {
         let temp = temp_dir.path.join(&p);
         let p = p.strip_prefix("mods")?;
         let perm = mods_dir.join(p);
+        let author_file = perm.join("thunderstore_author.txt");
         trace!(
             "Temp path: {} | Perm path: {}",
             temp.display(),
@@ -217,10 +218,7 @@ where
             fs::remove_dir_all(&perm)?;
         }
         fs::rename(&temp, &perm)?;
-        if manifest.try_exists()? {
-            let target = perm.join("manifest.json");
-            fs::copy(&manifest, target)?;
-        }
+        fs::write(author_file, &author)?;
     }
 
     Ok(())
@@ -228,12 +226,17 @@ where
 
 /// Install a mod to a directory
 /// # Params
+/// * author - string that identifies the package author
 /// * zip_file - compressed mod file
 /// * target_dir - directory to install to
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_mod(zip_file: &File, target_dir: impl AsRef<Path>) -> Result<(), ThermiteError> {
-    install_with_sanity(zip_file, target_dir, None, |_| true)
+pub fn install_mod<'a>(
+    author: impl Into<&'a str>,
+    zip_file: &File,
+    target_dir: impl AsRef<Path>,
+) -> Result<(), ThermiteError> {
+    install_with_sanity(author, zip_file, target_dir, None, |_| true)
 }
 
 /// Install N* to the provided path

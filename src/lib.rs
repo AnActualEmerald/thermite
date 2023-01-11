@@ -24,5 +24,8 @@ pub mod error;
 pub mod model;
 
 // Important functions and structs
-pub use crate::core::manage::*;
-pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
+pub mod prelude {
+    pub use crate::core::manage::{install_mod, install_northstar, install_with_sanity, uninstall};
+    pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
+    pub use crate::error::ThermiteError;
+}
