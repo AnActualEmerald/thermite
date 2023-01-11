@@ -12,6 +12,7 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct PackageListing {
     name: String,
+    owner: String,
     versions: Vec<PackageVersion>,
     #[serde(flatten)]
     _extra: HashMap<String, Value>,
@@ -76,6 +77,7 @@ fn map_response(res: &[PackageListing]) -> Vec<Mod> {
 
             Mod {
                 name: e.name.clone(),
+                author: e.owner.clone(),
                 latest: latest.version_number,
                 versions: urls,
                 installed: false,

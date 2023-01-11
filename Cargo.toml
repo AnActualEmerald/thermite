@@ -4,7 +4,7 @@ version = "0.4.0-rc.2"
 edition = "2021"
 description = "Crate for managing Northstar mods"
 license = "MIT"
-repository = "https://gitea.greenboi.me/Emerald/thermite"
+repository = "https://forge.greenboi.me/Emerald/thermite"
 exclude = ["commands/"]
 
 [lib]
@@ -23,7 +23,5 @@ thiserror = "1.0.37"
 zip = "0.6.3"
 
 [dev-dependencies]
-futures-util = "0.3.25"
-reqwest = "0.11.12"
-tokio = {version = "1.24.1", features = ["full"]}
+tokio = { version = "1.24.1", features = ["full"] }
 tokio-test = "0.4.2"

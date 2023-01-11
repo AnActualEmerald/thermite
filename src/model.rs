@@ -36,6 +36,7 @@ pub struct Mod {
     pub global: bool,
     ///A map of each version of a mod
     pub versions: BTreeMap<String, ModVersion>,
+    pub author: String,
 }
 
 impl Mod {

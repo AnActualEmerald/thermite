@@ -22,7 +22,7 @@ use log::{debug, error, trace};
 /// * file_path - Full path to save file to
 /// * pb - `ProgressBar` to update
 pub async fn download_file_with_progress(
-    url: &str,
+    url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
     pb: impl Into<Option<ProgressBar>>,
 ) -> Result<File, ThermiteError> {
@@ -31,7 +31,7 @@ pub async fn download_file_with_progress(
     let file_path = file_path.as_ref();
 
     //send the request
-    let res = client.get(url).send().await?;
+    let res = client.get(url.as_ref()).send().await?;
 
     if !res.status().is_success() {
         error!("Got bad response from thunderstore");
@@ -45,13 +45,13 @@ pub async fn download_file_with_progress(
     let file_size = res
         .content_length()
         .ok_or_else(|| ThermiteError::MiscError("Missing content length header".into()))?;
-    debug!("Downloading file size: {}", file_size);
+    debug!("Downloading file of size: {}", file_size);
 
     //start download in chunks
     let mut file = File::create(file_path)?;
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
-    debug!("Starting download from {}", url);
+    debug!("Starting download from {}", url.as_ref());
     while let Some(item) = stream.next().await {
         let chunk = item?;
         file.write_all(&chunk)?;
@@ -77,11 +77,14 @@ pub async fn download_file_with_progress(
 /// # Params
 /// * url - Url to download from
 /// * file_path - Full path to save file to
-pub async fn download_file(url: &str, file_path: impl AsRef<Path>) -> Result<File, ThermiteError> {
+pub async fn download_file(
+    url: impl AsRef<str>,
+    file_path: impl AsRef<Path>,
+) -> Result<File, ThermiteError> {
     download_file_with_progress(url, file_path.as_ref(), None).await
 }
 
-pub fn uninstall(mods: Vec<&PathBuf>) -> Result<(), ThermiteError> {
+pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {
             //try removing a file too, just in case
@@ -102,8 +105,8 @@ pub fn uninstall(mods: Vec<&PathBuf>) -> Result<(), ThermiteError> {
 ///     - returns `bool`
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_with_sanity<'a, F>(
-    author: impl Into<&'a str>,
+pub fn install_with_sanity<F>(
+    author: impl AsRef<str>,
     zip_file: &File,
     target_dir: impl AsRef<Path>,
     extract_dir: Option<&Path>,
@@ -132,6 +135,7 @@ where
         )
     };
 
+    // TempDir ensures the directory is removed when it goes out of scope
     let temp_dir = TempDir::create(temp_dir)?;
     {
         let mut archive = ZipArchive::new(zip_file)?;
@@ -168,14 +172,15 @@ where
         }
     }
     let mut mods = vec![];
-    if let Ok(entries) = temp_dir.path.read_dir() {
+    // find all the submods that need to be installed
+    if let Ok(entries) = temp_dir.read_dir() {
         for e in entries {
             let e = e.unwrap();
 
+            // there should only be one directory in the root of a package, but this loop should work regardless
+            trace!("Checking if '{}' is a directory", e.path().display());
             if e.path().is_dir() {
-                //Get the path relative to the .papa.ron file
-                // let m_path = e.path();
-                // let m_path = m_path.strip_prefix(&temp_dir)?;
+                trace!("It is");
                 if e.path().ends_with("mods") {
                     let mut dirs = e.path().read_dir().unwrap();
                     while let Some(Ok(e)) = dirs.next() {
@@ -185,6 +190,8 @@ where
                         mods.push(Path::new("mods").join(name));
                     }
                 } else {
+                    // sometimes people don't use the `mods` folder if they only have one mod
+                    // this is technically incorrect but we should handle it anyways
                     debug!(
                         "Add one submod {}",
                         e.path().file_name().unwrap().to_string_lossy()
@@ -197,27 +204,42 @@ where
 
     if mods.is_empty() {
         return Err(ThermiteError::MiscError(
-            "Couldn't find a directory to copy".into(),
+            "Couldn't find a mod directory to copy".into(),
         ));
     }
 
-    let author = author.into();
+    let manifest = temp_dir.join("manifest.json");
+    let author = author.as_ref();
+
     // move the mod files from the temp dir to the real dir
-    for p in mods.iter_mut() {
-        let temp = temp_dir.path.join(&p);
-        let p = p.strip_prefix("mods")?;
+    for submod in mods.iter_mut() {
+        // the location of the mod within the temp dir
+        let temp = temp_dir.join(&submod);
+        // the name of the folder the mod lives in
+        let p = submod.strip_prefix("mods")?;
+        // the location of the mod within the target install dir
         let perm = mods_dir.join(p);
+
         let author_file = perm.join("thunderstore_author.txt");
+        let manifest_file = perm.join("manifest.json");
         trace!(
             "Temp path: {} | Perm path: {}",
             temp.display(),
             perm.display()
         );
 
-        if perm.exists() {
+        // remove any existing files
+        if perm.try_exists()? {
             fs::remove_dir_all(&perm)?;
         }
         fs::rename(&temp, &perm)?;
+
+        // check if the manifest exists first, it may not if the mod didn't come from thunderstore
+        if manifest.try_exists()? {
+            fs::copy(&manifest, manifest_file)?;
+        }
+
+        // add 'thunderstore_author.txt' using the provided author name
         fs::write(author_file, &author)?;
     }
 
@@ -232,7 +254,7 @@ where
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
 pub fn install_mod<'a>(
-    author: impl Into<&'a str>,
+    author: impl AsRef<str>,
     zip_file: &File,
     target_dir: impl AsRef<Path>,
 ) -> Result<(), ThermiteError> {
