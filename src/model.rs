@@ -1,18 +1,27 @@
-use log::{debug, trace, warn};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
-use serde_json;
+use serde_json::{self, Value};
 use std::{
     collections::{hash_map::DefaultHasher, BTreeMap},
     hash::{Hash, Hasher},
 };
 use std::{
-    ffi::OsStr,
-    fs::{self, File, OpenOptions},
+    fs,
     path::{Path, PathBuf},
 };
 
-use crate::{core::utils, error::ThermiteError};
+use crate::error::ThermiteError;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "PascalCase")]
+pub struct ModJSON {
+    name: String,
+    description: String,
+    version: String,
+    load_priotity: i32,
+    con_vars: Vec<Value>,
+    scripts: Vec<Value>,
+    localisation: Vec<String>,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mod {
@@ -27,6 +36,17 @@ pub struct Mod {
     pub global: bool,
     ///A map of each version of a mod
     pub versions: BTreeMap<String, ModVersion>,
+    pub author: String,
+}
+
+impl Mod {
+    pub fn get_latest(&self) -> Option<&ModVersion> {
+        self.versions.get(&self.latest)
+    }
+
+    pub fn get_version(&self, version: impl AsRef<str>) -> Option<&ModVersion> {
+        self.versions.get(version.as_ref())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,46 +74,6 @@ impl ModVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
-pub struct LocalMod {
-    pub package_name: String,
-    pub version: String,
-    pub mods: Vec<SubMod>,
-    //TODO: Implement local dep tracking
-    pub depends_on: Vec<String>,
-    pub needed_by: Vec<String>,
-}
-
-impl LocalMod {
-    pub fn flatten_paths(&self) -> Vec<&PathBuf> {
-        self.mods.iter().map(|m| &m.path).collect()
-    }
-
-    pub fn any_disabled(&self) -> bool {
-        self.mods.iter().any(|m| m.disabled())
-    }
-}
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
-pub struct SubMod {
-    pub path: PathBuf,
-    pub name: String,
-}
-
-impl SubMod {
-    pub fn new(name: &str, path: &Path) -> Self {
-        SubMod {
-            name: name.to_string(),
-            path: path.to_owned(),
-        }
-    }
-
-    pub fn disabled(&self) -> bool {
-        self.path
-            .components()
-            .any(|f| f.as_os_str() == OsStr::new(".disabled"))
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Manifest {
     pub name: String,
@@ -101,279 +81,6 @@ pub struct Manifest {
     pub website_url: String,
     pub description: String,
     pub dependencies: Vec<String>,
-}
-
-/// Index of mods installed locally
-///
-/// Will save itself when it goes out of scope
-#[derive(Default, Serialize, Deserialize, Debug, Clone)]
-pub struct LocalIndex {
-    #[serde(default)]
-    pub mods: BTreeMap<String, LocalMod>,
-    #[serde(default)]
-    pub linked: BTreeMap<String, LocalMod>,
-    #[serde(skip)]
-    path: PathBuf,
-    #[serde(skip)]
-    hash: u64,
-}
-
-impl Hash for LocalIndex {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.mods.hash(state);
-        self.linked.hash(state);
-    }
-}
-
-impl LocalIndex {
-    /// Load an existing RON-format index file
-    /// # Params
-    /// * path - Path to the index file to load
-    pub fn load(path: impl AsRef<Path>) -> Result<Self, ThermiteError> {
-        let path = path.as_ref();
-        if path.exists() {
-            let raw = fs::read_to_string(path)?;
-            let mut parsed = ron::from_str::<Self>(&raw)?;
-            parsed.path = path.into();
-            let hash = {
-                let mut hasher = DefaultHasher::new();
-                parsed.hash(&mut hasher);
-                hasher.finish()
-            };
-            parsed.hash = hash;
-            Ok(parsed)
-        } else {
-            Err(ThermiteError::MissingFile(path.into()))
-        }
-    }
-
-    /// Tries to load an existing RON-format index file, or creates one if it doesn't exist
-    /// # Params
-    /// * path - Path to file to try to load
-    pub fn load_or_create(path: impl AsRef<Path>) -> Self {
-        match Self::load(path.as_ref()) {
-            Ok(s) => s,
-            Err(_) => {
-                debug!("Creating index at {}", path.as_ref().display());
-                let s = Self::create(path.as_ref());
-                s.save().unwrap();
-                s
-            }
-        }
-    }
-
-    /// Create a new index file
-    /// # Params
-    /// * path - Path to create the file at
-    pub fn create(path: &Path) -> Self {
-        let mut ind = Self::default();
-        ind.path = path.into();
-
-        ind
-    }
-
-    /// Save the index file
-    ///
-    /// This function will be called when the `LocalIndex` is dropped. It shouldn't need to be called manually.
-    pub fn save(&self) -> Result<(), ThermiteError> {
-        let parsed = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::new())?;
-        if let Some(p) = self.path.parent() {
-            fs::create_dir_all(p)?;
-        }
-        fs::write(&self.path, &parsed).map_err(|e| e.into())
-    }
-
-    /// Returns the parent directory of the index file if available,
-    /// or a default `PathBuf` otherwise
-    pub fn parent_dir(&self) -> PathBuf {
-        if let Some(p) = self.path.parent() {
-            p.to_path_buf()
-        } else {
-            PathBuf::default()
-        }
-    }
-
-    /// Calls `LocalIndex::save` only if the index was modified
-    ///
-    /// Returns whether or not the index was written to disk
-    pub fn save_if_changed(&self) -> bool {
-        let hash = {
-            let mut hasher = DefaultHasher::new();
-            self.hash(&mut hasher);
-            hasher.finish()
-        };
-
-        trace!("Old hash: {}\nNew hash: {}", self.hash, hash);
-        if hash != self.hash {
-            self.save().unwrap();
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn path(&self) -> &PathBuf {
-        &self.path
-    }
-
-    pub fn path_mut(&mut self) -> &mut PathBuf {
-        &mut self.path
-    }
-
-    pub fn get_mod(&self, name: &str) -> Option<&LocalMod> {
-        if self.mods.contains_key(name) {
-            self.mods.get(name)
-        } else if self.linked.contains_key(name) {
-            self.linked.get(name)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_sub_mod(&self, name: &str) -> Option<&SubMod> {
-        for m in self.mods.values().chain(self.linked.values()) {
-            if let Some(m) = m.mods.iter().find(|e| e.name == name) {
-                return Some(m);
-            }
-        }
-
-        None
-    }
-}
-
-impl Drop for LocalIndex {
-    fn drop(&mut self) {
-        if self.save_if_changed() {
-            debug!("Saved index at {}", self.path().display());
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct CachedMod {
-    name: String,
-    version: String,
-    path: PathBuf,
-}
-
-impl PartialEq for CachedMod {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.version == other.version
-    }
-}
-
-impl CachedMod {
-    fn new(name: &str, version: &str, path: &Path) -> Self {
-        CachedMod {
-            name: name.to_string(),
-            version: version.to_string(),
-            path: path.to_owned(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Cache {
-    path: PathBuf,
-    re: Regex,
-    pkgs: Vec<CachedMod>,
-}
-
-impl Default for Cache {
-    fn default() -> Self {
-        Self {
-            path: PathBuf::new(),
-            re: Regex::new("").unwrap(),
-            pkgs: vec![],
-        }
-    }
-}
-
-impl Cache {
-    pub fn build(dir: &Path) -> Result<Self, ThermiteError> {
-        let cache = fs::read_dir(dir)?;
-        let re = Regex::new(r"(.+)[_-](\d\.\d\.\d)(\.zip)?").expect("Unable to create cache regex");
-        let mut pkgs = vec![];
-        for e in cache.flatten() {
-            if !e.path().is_dir() {
-                debug!("Reading {} into cache", e.path().display());
-                let file_name = e.file_name();
-                if let Some(c) = re.captures(file_name.to_str().unwrap()) {
-                    let name = c.get(1).unwrap().as_str().trim();
-                    let ver = c.get(2).unwrap().as_str().trim();
-                    pkgs.push(CachedMod::new(name, ver, dir));
-                    debug!("Added {} version {} to cache", name, ver);
-                } else {
-                    warn!(
-                        "Unexpected filename in cache dir: {}",
-                        file_name.to_str().unwrap()
-                    );
-                }
-            }
-        }
-        Ok(Cache {
-            path: dir.to_path_buf(),
-            pkgs,
-            re,
-        })
-    }
-
-    ///Cleans all cached versions of a package except the version provided
-    pub fn clean(&mut self, name: &str, version: &str) -> Result<bool, ThermiteError> {
-        let mut res = false;
-
-        for m in self
-            .pkgs
-            .clone()
-            .into_iter()
-            .filter(|e| e.name == name && e.version != version)
-        {
-            if let Some(index) = self.pkgs.iter().position(|e| e == &m) {
-                utils::remove_file(&m.path)?;
-                self.pkgs.swap_remove(index);
-                res = true
-            }
-        }
-
-        Ok(res)
-    }
-
-    ///Checks if a path is in the current cache
-    pub fn check(&self, path: impl AsRef<Path>) -> Option<File> {
-        if self.has(path.as_ref()) {
-            self.open_file(path.as_ref())
-        } else {
-            None
-        }
-    }
-
-    fn has(&self, path: &Path) -> bool {
-        if let Some(name) = path.file_name() {
-            if let Some(parts) = self.re.captures(name.to_str().unwrap()) {
-                let name = parts.get(1).unwrap().as_str();
-                let ver = parts.get(2).unwrap().as_str();
-                if let Some(c) = self.pkgs.iter().find(|e| e.name == name) {
-                    if c.version == ver {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    #[inline(always)]
-    fn open_file(&self, path: &Path) -> Option<File> {
-        if let Ok(f) = OpenOptions::new().read(true).open(path) {
-            Some(f)
-        } else {
-            None
-        }
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
 }
 
 // enabledmods.json
@@ -442,7 +149,7 @@ impl EnabledMods {
                 fs::create_dir_all(p)?;
             }
 
-            fs::write(path, &parsed)?;
+            fs::write(path, parsed)?;
         }
 
         Ok(())

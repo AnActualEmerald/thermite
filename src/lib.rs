@@ -1,15 +1,13 @@
 //! # Basic Usage:
 //! ```no_run
-//! use thermite::{Ctx, update_index, LocalIndex, ProjectDirs, install};
-//! use std::path::Path;
+//! use thermite::prelude::*;
 //!
 //! async fn example() {
-//!     let index = update_index::<&Path>(None, None).await;
-//!     let mut target = LocalIndex::load_or_create(Path::new("mods"));
-//!     let mut ctx = Ctx::new(ProjectDirs::from("com", "YourOrg", "YourApp").unwrap());
+//!     let index = get_package_index().await.unwrap();
 //!     if let Some(md) = index.iter().find(|e| e.name == "server_utilities") {
-//!         let latest = md.versions.get(&md.latest).unwrap();
-//!         install(&mut ctx, &mut target, &[latest.clone()], false, true).await.unwrap();
+//!         let latest = md.get_latest().unwrap();
+//!         let zipped = download_file(&latest.url, "server_utils.zip").await.unwrap();
+//!         install_mod(&md.author, &zipped, "mods").unwrap();
 //!     }    
 //! }
 //! ```
@@ -22,11 +20,15 @@ pub mod core;
 pub mod error;
 pub mod model;
 
-// Re-exports
-pub use directories::ProjectDirs;
-
 // Important functions and structs
-pub use crate::core::install_northstar;
-pub use crate::core::utils::update_index;
-pub use crate::core::{get_outdated, install, update, Ctx};
-pub use crate::model::{LocalIndex, LocalMod, Mod, ModVersion};
+pub mod prelude {
+    pub use crate::api::get_package_index;
+    pub use crate::core::manage::{
+        download_file, download_file_with_progress, install_mod, install_northstar,
+        install_with_sanity, uninstall,
+    };
+    pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
+    pub use crate::error::ThermiteError;
+    // reexport indicatif for progress bars
+    pub use indicatif;
+}
