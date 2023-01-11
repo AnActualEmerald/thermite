@@ -2,6 +2,8 @@
 Rust crate for managing Northstar and interacting with Thunderstore
 
 ### v0.4.0
+- move exported functions from crate root to `prelude` module
+- add `manifest.json` and `thunderstore_author.txt` to installed packages
 - add optional sanity check for install function
 - add `find_mods` function
 - add `enabledmods.json` support
