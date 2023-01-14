@@ -193,3 +193,10 @@ impl EnabledMods {
         self.path.as_ref()
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct InstalledMod {
+    pub manifest: Manifest,
+    pub mod_json: ModJSON,
+    pub author: String,
+}

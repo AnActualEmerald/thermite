@@ -1,5 +1,6 @@
 use crate::error::ThermiteError;
 use crate::model::EnabledMods;
+use crate::model::InstalledMod;
 use crate::model::Mod;
 use crate::model::ModJSON;
 
@@ -75,14 +76,36 @@ pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteEr
 /// Search a directory for mod.json files in its children
 ///
 /// Searches one level deep
-pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<ModJSON>, ThermiteError> {
+pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteError> {
     let mut res = vec![];
     for child in dir.as_ref().read_dir()? {
-        let path = child?.path().join("mod.json");
-        if let Ok(true) = path.try_exists() {
+        let child = child?;
+        let path = child.path().join("mod.json");
+        let mod_json = if path.try_exists()? {
             let raw = fs::read_to_string(path)?;
-            res.push(serde_json::from_str(&raw)?);
-        }
+            serde_json::from_str(&raw)?
+        } else {
+            continue;
+        };
+        let path = child.path().join("manifest.json");
+        let manifest = if path.try_exists()? {
+            let raw = fs::read_to_string(path)?;
+            serde_json::from_str(&raw)?
+        } else {
+            continue;
+        };
+        let path = child.path().join("thunderstor_author.txt");
+        let author = if path.try_exists()? {
+            fs::read_to_string(path)?
+        } else {
+            continue;
+        };
+
+        res.push(InstalledMod {
+            manifest,
+            mod_json,
+            author,
+        });
     }
 
     Ok(res)
