@@ -10,7 +10,9 @@ exclude = ["commands/"]
 [lib]
 name = "thermite"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[example]]
+name = "steam"
+required-features = ["steam"]
 
 [dependencies]
 futures-util = "0.3.25"
