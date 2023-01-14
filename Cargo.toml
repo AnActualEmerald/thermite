@@ -19,9 +19,14 @@ log = "0.4.17"
 reqwest = { version = "0.11.13", features = ["stream"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
+steamlocate = { version = "1.1.0", optional = true }
 thiserror = "1.0.38"
 zip = "0.6.3"
 
 [dev-dependencies]
 tokio = { version = "1.24.1", features = ["full"] }
 tokio-test = "0.4.2"
+
+[features]
+default = []
+steam = ["steamlocate"]

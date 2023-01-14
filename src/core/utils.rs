@@ -87,3 +87,20 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<ModJSON>, ThermiteError> {
 
     Ok(res)
 }
+
+#[cfg(feature = "steam")]
+pub(crate) mod steam {
+    use std::path::PathBuf;
+    use steamlocate::SteamDir;
+
+    pub fn steam_libraries() -> Option<Vec<PathBuf>> {
+        let mut steamdir = SteamDir::locate()?;
+        let folders = steamdir.libraryfolders();
+        Some(folders.paths.clone())
+    }
+
+    pub fn titanfall() -> Option<PathBuf> {
+        let mut steamdir = SteamDir::locate()?;
+        Some(steamdir.app(&1237970)?.path.clone())
+    }
+}
