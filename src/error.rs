@@ -25,4 +25,6 @@ pub enum ThermiteError {
     PrefixError(#[from] StripPrefixError),
     #[error("Sanity check failed")]
     SanityError,
+    #[error("Attempted to save a file but the path was None")]
+    MissingPath,
 }

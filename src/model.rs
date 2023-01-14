@@ -1,3 +1,4 @@
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::{
@@ -101,6 +102,8 @@ pub struct EnabledMods {
     ///Path to the file to read & write
     #[serde(skip)]
     path: Option<PathBuf>,
+    #[serde(skip)]
+    do_save: bool,
 }
 
 impl Hash for EnabledMods {
@@ -121,6 +124,7 @@ impl Default for EnabledMods {
             mods: BTreeMap::new(),
             hash: 0,
             path: None,
+            do_save: true,
         }
     }
 }
@@ -135,13 +139,37 @@ impl Drop for EnabledMods {
             };
 
             if hash != self.hash {
-                self.save().unwrap()
+                if let Err(e) = self.save() {
+                    error!("Encountered error while saving enabled_mods.json: {}", e);
+                } else {
+                    debug!("Wrote file at {}", self.path.as_ref().unwrap().display())
+                }
             }
         }
     }
 }
 
 impl EnabledMods {
+    ///Returns a default EnabledMods with the path property set
+    pub fn default_with_path(path: impl Into<PathBuf>) -> Self {
+        let mut s = Self::default();
+        s.path = Some(path.into());
+        s
+    }
+
+    ///Don't attempt to write the file when dropped
+    pub fn dont_save(&mut self) {
+        self.do_save = false;
+    }
+
+    ///Do attempt to write the file when dropped
+    pub fn do_save(&mut self) {
+        self.do_save = true;
+    }
+
+    ///Saves the file using the path it was loaded from
+    ///
+    ///Returns an error if the path isn't set
     pub fn save(&self) -> Result<(), ThermiteError> {
         let parsed = serde_json::to_string_pretty(self)?;
         if let Some(path) = &self.path {
@@ -150,13 +178,18 @@ impl EnabledMods {
             }
 
             fs::write(path, parsed)?;
+            Ok(())
+        } else {
+            Err(ThermiteError::MissingPath)
         }
-
-        Ok(())
     }
 
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
         self.path = Some(path.as_ref().to_owned());
         self.save()
+    }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        self.path.as_ref()
     }
 }
