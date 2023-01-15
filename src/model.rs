@@ -15,13 +15,16 @@ use crate::error::ThermiteError;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct ModJSON {
-    name: String,
-    description: String,
-    version: String,
-    load_priotity: i32,
-    con_vars: Vec<Value>,
-    scripts: Vec<Value>,
-    localisation: Vec<String>,
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub load_priotity: Option<i32>,
+    #[serde(default)]
+    pub con_vars: Vec<Value>,
+    #[serde(default)]
+    pub scripts: Vec<Value>,
+    #[serde(default)]
+    pub localisation: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

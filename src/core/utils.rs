@@ -2,8 +2,8 @@ use crate::error::ThermiteError;
 use crate::model::EnabledMods;
 use crate::model::InstalledMod;
 use crate::model::Mod;
-use crate::model::ModJSON;
 
+use log::debug;
 use log::error;
 use std::fs;
 use std::ops::Deref;
@@ -78,8 +78,14 @@ pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteEr
 /// Searches one level deep
 pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteError> {
     let mut res = vec![];
-    for child in dir.as_ref().read_dir()? {
+    let dir = dir.as_ref().canonicalize()?;
+    debug!("Finding mods in '{}'", dir.display());
+    for child in dir.read_dir()? {
         let child = child?;
+        if !child.file_type()?.is_dir() {
+            debug!("Skipping file {}", child.path().display());
+            continue;
+        }
         let path = child.path().join("mod.json");
         let mod_json = if path.try_exists()? {
             let raw = fs::read_to_string(path)?;
@@ -94,7 +100,7 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteErr
         } else {
             continue;
         };
-        let path = child.path().join("thunderstor_author.txt");
+        let path = child.path().join("thunderstore_author.txt");
         let author = if path.try_exists()? {
             fs::read_to_string(path)?
         } else {
