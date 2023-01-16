@@ -2,7 +2,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
     hash::{Hash, Hasher},
 };
 use std::{
@@ -19,12 +19,15 @@ pub struct ModJSON {
     pub description: String,
     pub version: String,
     pub load_priotity: Option<i32>,
+    pub required_on_client: Option<bool>,
     #[serde(default)]
     pub con_vars: Vec<Value>,
     #[serde(default)]
     pub scripts: Vec<Value>,
     #[serde(default)]
     pub localisation: Vec<String>,
+    #[serde(flatten)]
+    pub _extra: HashMap<String, Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -202,4 +205,5 @@ pub struct InstalledMod {
     pub manifest: Manifest,
     pub mod_json: ModJSON,
     pub author: String,
+    pub path: PathBuf,
 }

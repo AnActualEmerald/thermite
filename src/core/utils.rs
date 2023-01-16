@@ -76,7 +76,9 @@ pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteEr
 /// Search a directory for mod.json files in its children
 ///
 /// Searches one level deep
-pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteError> {
+pub fn find_mods(
+    dir: impl AsRef<Path>,
+) -> Result<Vec<Result<InstalledMod, ThermiteError>>, ThermiteError> {
     let mut res = vec![];
     let dir = dir.as_ref().canonicalize()?;
     debug!("Finding mods in '{}'", dir.display());
@@ -88,15 +90,23 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteErr
         }
         let path = child.path().join("mod.json");
         let mod_json = if path.try_exists()? {
-            let raw = fs::read_to_string(path)?;
-            serde_json::from_str(&raw)?
+            let raw = fs::read_to_string(&path)?;
+            let Ok(parsed) = json5::from_str(&raw) else {
+                res.push(Err(ThermiteError::MiscError(format!("Error parsing {}", path.display()))));
+                continue;
+            };
+            parsed
         } else {
             continue;
         };
         let path = child.path().join("manifest.json");
         let manifest = if path.try_exists()? {
-            let raw = fs::read_to_string(path)?;
-            serde_json::from_str(&raw)?
+            let raw = fs::read_to_string(&path)?;
+            let Ok(parsed) = serde_json::from_str(&raw) else {
+                res.push(Err(ThermiteError::MiscError(format!("Error parsing {}", path.display()))));
+                continue;
+            };
+            parsed
         } else {
             continue;
         };
@@ -107,11 +117,12 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteErr
             continue;
         };
 
-        res.push(InstalledMod {
+        res.push(Ok(InstalledMod {
             manifest,
             mod_json,
             author,
-        });
+            path: child.path(),
+        }));
     }
 
     Ok(res)
