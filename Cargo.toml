@@ -15,20 +15,15 @@ name = "steam"
 required-features = ["steam"]
 
 [dependencies]
-futures-util = "0.3.25"
-indicatif = "0.17.2"
 json5 = "0.4.1"
 log = "0.4.17"
-reqwest = { version = "0.11.13", features = ["stream"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
 steamlocate = { version = "1.1.0", optional = true }
 thiserror = "1.0.38"
+ureq = "2.6.2"
 zip = "0.6.3"
 
-[dev-dependencies]
-tokio = { version = "1.24.1", features = ["full"] }
-tokio-test = "0.4.2"
 
 [features]
 default = []

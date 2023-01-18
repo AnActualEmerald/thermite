@@ -31,6 +31,4 @@ pub mod prelude {
     #[cfg(feature = "steam")]
     pub use crate::core::{steam_libraries, titanfall};
     pub use crate::error::ThermiteError;
-    /// reexport indicatif for progress bars
-    pub use indicatif;
 }

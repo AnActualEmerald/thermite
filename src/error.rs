@@ -1,5 +1,6 @@
 use std::{
     io,
+    num::ParseIntError,
     path::{PathBuf, StripPrefixError},
 };
 
@@ -13,8 +14,8 @@ pub enum ThermiteError {
     IoError(#[from] io::Error),
     #[error("{0}")]
     MiscError(String),
-    #[error("Error downloading file: {0}")]
-    DownloadError(#[from] reqwest::Error),
+    #[error("Error making network request: {0}")]
+    NetworkError(#[from] ureq::Error),
     #[error(transparent)]
     ZipError(#[from] zip::result::ZipError),
     #[error("Error parsing JSON: {0}")]
@@ -27,4 +28,6 @@ pub enum ThermiteError {
     SanityError,
     #[error("Attempted to save a file but the path was None")]
     MissingPath,
+    #[error("Error converting string to integer: {0}")]
+    ParseIntError(#[from] ParseIntError),
 }
