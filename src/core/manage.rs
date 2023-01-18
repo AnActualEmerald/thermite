@@ -252,7 +252,7 @@ pub fn install_mod<'a>(
 /// # Params
 /// * zip_file - compressed mod file
 /// * game_path - the path of the Titanfall 2 install
-pub async fn install_northstar(
+pub fn install_northstar(
     zip_file: &File,
     game_path: impl AsRef<Path>,
 ) -> Result<(), ThermiteError> {
