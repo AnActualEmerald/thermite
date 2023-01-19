@@ -11,11 +11,13 @@ use zip::ZipArchive;
 
 use log::{debug, trace};
 
+const CHUNK_SIZE: usize = 1024;
+
 /// Download a file and update a progress bar
 /// # Params
 /// * url - URL to download from
 /// * file_path - Full path to save file to
-/// * cb - Callback to call with every chunk read. Params are |current: u64, total: u64|
+/// * cb - Callback to call with every chunk read. Params are |current: u64, delta: u64|
 pub fn download_file_with_progress<F>(
     url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
@@ -37,7 +39,7 @@ where
 
     //start download in chunks
     let mut downloaded: u64 = 0;
-    let mut buffer = [0; 1024];
+    let mut buffer = [0; CHUNK_SIZE];
     let mut body = res.into_reader();
     debug!("Starting download from {}", url.as_ref());
     {
@@ -46,7 +48,7 @@ where
             file.write(&buffer[0..n])?;
             downloaded += n as u64;
 
-            cb(downloaded, file_size);
+            cb(downloaded, n as u64);
 
             if n == 0 {
                 break;
