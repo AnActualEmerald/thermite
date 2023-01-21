@@ -69,7 +69,9 @@ pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteEr
         let raw = fs::read_to_string(path)?;
         Ok(serde_json::from_str(&raw)?)
     } else {
-        Err(ThermiteError::MissingFile(dir.as_ref().to_path_buf()))
+        Err(ThermiteError::MissingFile(Box::new(
+            dir.as_ref().to_path_buf(),
+        )))
     }
 }
 

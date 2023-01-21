@@ -17,7 +17,7 @@ const CHUNK_SIZE: usize = 1024;
 /// # Params
 /// * url - URL to download from
 /// * file_path - Full path to save file to
-/// * cb - Callback to call with every chunk read. Params are |current: u64, delta: u64|
+/// * cb - Callback to call with every chunk read. Params are |current_bytes: u64, delta_bytes: u64|
 pub fn download_file_with_progress<F>(
     url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
@@ -45,7 +45,7 @@ where
     {
         let mut file = File::create(file_path)?;
         while let Ok(n) = body.read(&mut buffer) {
-            file.write(&buffer[0..n])?;
+            file.write_all(&buffer[0..n])?;
             downloaded += n as u64;
 
             cb(downloaded, n as u64);
@@ -228,7 +228,7 @@ where
         }
 
         // add 'thunderstore_author.txt' using the provided author name
-        fs::write(author_file, &author)?;
+        fs::write(author_file, author)?;
     }
 
     Ok(())
@@ -241,7 +241,7 @@ where
 /// * target_dir - directory to install to
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_mod<'a>(
+pub fn install_mod(
     author: impl AsRef<str>,
     zip_file: &File,
     target_dir: impl AsRef<Path>,
