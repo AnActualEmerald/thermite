@@ -81,6 +81,18 @@ impl ModVersion {
     }
 }
 
+impl From<&ModVersion> for ModVersion {
+    fn from(value: &ModVersion) -> Self {
+        value.clone()
+    }
+}
+
+impl AsRef<ModVersion> for ModVersion {
+    fn as_ref(&self) -> &ModVersion {
+        &self
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Manifest {
     pub name: String,
