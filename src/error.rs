@@ -1,5 +1,6 @@
 use std::{
     io,
+    num::ParseIntError,
     path::{PathBuf, StripPrefixError},
 };
 
@@ -8,13 +9,13 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ThermiteError {
     #[error("No such file {0:?}")]
-    MissingFile(PathBuf),
+    MissingFile(Box<PathBuf>),
     #[error(transparent)]
     IoError(#[from] io::Error),
     #[error("{0}")]
     MiscError(String),
-    #[error("Error downloading file: {0}")]
-    DownloadError(#[from] reqwest::Error),
+    #[error("Error making network request: {0}")]
+    NetworkError(Box<ureq::Error>),
     #[error(transparent)]
     ZipError(#[from] zip::result::ZipError),
     #[error("Error parsing JSON: {0}")]
@@ -25,4 +26,15 @@ pub enum ThermiteError {
     PrefixError(#[from] StripPrefixError),
     #[error("Sanity check failed")]
     SanityError,
+    #[error("Attempted to save a file but the path was None")]
+    MissingPath,
+    #[error("Error converting string to integer: {0}")]
+    ParseIntError(#[from] ParseIntError),
+}
+
+// ureq::Error is ~240 bytes so we store it in a box
+impl From<ureq::Error> for ThermiteError {
+    fn from(value: ureq::Error) -> Self {
+        Self::NetworkError(Box::new(value))
+    }
 }

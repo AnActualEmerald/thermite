@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
 
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -30,21 +29,14 @@ struct PackageVersion {
     _extra: HashMap<String, Value>,
 }
 
-pub async fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
-    let client = Client::new();
-    let raw = client
-        .get("https://northstar.thunderstore.io/c/northstar/api/v1/package/")
-        .header("accept", "application/json")
-        .send()
-        .await?;
-    if raw.status().is_success() {
-        let parsed: Vec<PackageListing> = serde_json::from_str(&raw.text().await.unwrap())?;
-        let index = map_response(&parsed);
+pub fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
+    let raw = ureq::get("https://northstar.thunderstore.io/c/northstar/api/v1/package/")
+        .set("accept", "application/json")
+        .call()?;
+    let parsed: Vec<PackageListing> = serde_json::from_str(&raw.into_string()?)?;
+    let index = map_response(&parsed);
 
-        Ok(index)
-    } else {
-        Err(ThermiteError::MiscError(raw.status().to_string()))
-    }
+    Ok(index)
 }
 
 fn map_response(res: &[PackageListing]) -> Vec<Mod> {

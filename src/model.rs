@@ -1,7 +1,8 @@
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
     hash::{Hash, Hasher},
 };
 use std::{
@@ -14,13 +15,19 @@ use crate::error::ThermiteError;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct ModJSON {
-    name: String,
-    description: String,
-    version: String,
-    load_priotity: i32,
-    con_vars: Vec<Value>,
-    scripts: Vec<Value>,
-    localisation: Vec<String>,
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub load_priotity: Option<i32>,
+    pub required_on_client: Option<bool>,
+    #[serde(default)]
+    pub con_vars: Vec<Value>,
+    #[serde(default)]
+    pub scripts: Vec<Value>,
+    #[serde(default)]
+    pub localisation: Vec<String>,
+    #[serde(flatten)]
+    pub _extra: HashMap<String, Value>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -74,6 +81,18 @@ impl ModVersion {
     }
 }
 
+impl From<&ModVersion> for ModVersion {
+    fn from(value: &ModVersion) -> Self {
+        value.clone()
+    }
+}
+
+impl AsRef<ModVersion> for ModVersion {
+    fn as_ref(&self) -> &ModVersion {
+        &self
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Manifest {
     pub name: String,
@@ -101,6 +120,8 @@ pub struct EnabledMods {
     ///Path to the file to read & write
     #[serde(skip)]
     path: Option<PathBuf>,
+    #[serde(skip)]
+    do_save: bool,
 }
 
 impl Hash for EnabledMods {
@@ -121,6 +142,7 @@ impl Default for EnabledMods {
             mods: BTreeMap::new(),
             hash: 0,
             path: None,
+            do_save: true,
         }
     }
 }
@@ -135,13 +157,37 @@ impl Drop for EnabledMods {
             };
 
             if hash != self.hash {
-                self.save().unwrap()
+                if let Err(e) = self.save() {
+                    error!("Encountered error while saving enabled_mods.json: {}", e);
+                } else {
+                    debug!("Wrote file at {}", self.path.as_ref().unwrap().display())
+                }
             }
         }
     }
 }
 
 impl EnabledMods {
+    ///Returns a default EnabledMods with the path property set
+    pub fn default_with_path(path: impl Into<PathBuf>) -> Self {
+        let mut s = Self::default();
+        s.path = Some(path.into());
+        s
+    }
+
+    ///Don't attempt to write the file when dropped
+    pub fn dont_save(&mut self) {
+        self.do_save = false;
+    }
+
+    ///Do attempt to write the file when dropped
+    pub fn do_save(&mut self) {
+        self.do_save = true;
+    }
+
+    ///Saves the file using the path it was loaded from
+    ///
+    ///Returns an error if the path isn't set
     pub fn save(&self) -> Result<(), ThermiteError> {
         let parsed = serde_json::to_string_pretty(self)?;
         if let Some(path) = &self.path {
@@ -150,13 +196,26 @@ impl EnabledMods {
             }
 
             fs::write(path, parsed)?;
+            Ok(())
+        } else {
+            Err(ThermiteError::MissingPath)
         }
-
-        Ok(())
     }
 
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
         self.path = Some(path.as_ref().to_owned());
         self.save()
     }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        self.path.as_ref()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct InstalledMod {
+    pub manifest: Manifest,
+    pub mod_json: ModJSON,
+    pub author: String,
+    pub path: PathBuf,
 }

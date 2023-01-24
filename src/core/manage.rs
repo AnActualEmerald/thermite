@@ -1,5 +1,4 @@
 use std::{
-    cmp::min,
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
@@ -8,68 +7,57 @@ use std::{
 
 use crate::{core::utils::TempDir, error::ThermiteError};
 
-use futures_util::StreamExt;
-use indicatif::ProgressBar;
-
-use reqwest::Client;
 use zip::ZipArchive;
 
-use log::{debug, error, trace};
+use log::{debug, trace};
+
+const CHUNK_SIZE: usize = 1024;
 
 /// Download a file and update a progress bar
 /// # Params
 /// * url - URL to download from
 /// * file_path - Full path to save file to
-/// * pb - `ProgressBar` to update
-pub async fn download_file_with_progress(
+/// * cb - Callback to call with every chunk read. Params are |current_bytes: u64, delta_bytes: u64|
+pub fn download_file_with_progress<F>(
     url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
-    pb: impl Into<Option<ProgressBar>>,
-) -> Result<File, ThermiteError> {
-    let client = Client::new();
-    let pb = pb.into();
+    cb: F,
+) -> Result<File, ThermiteError>
+where
+    F: Fn(u64, u64),
+{
     let file_path = file_path.as_ref();
 
     //send the request
-    let res = client.get(url.as_ref()).send().await?;
-
-    if !res.status().is_success() {
-        error!("Got bad response from thunderstore");
-        error!("{:?}", res);
-        return Err(ThermiteError::MiscError(format!(
-            "Thunderstore returned error: {:#?}",
-            res
-        )));
-    }
+    let res = ureq::get(url.as_ref()).call()?;
 
     let file_size = res
-        .content_length()
-        .ok_or_else(|| ThermiteError::MiscError("Missing content length header".into()))?;
+        .header("Content-Length")
+        .ok_or_else(|| ThermiteError::MiscError("Missing content length header".into()))?
+        .parse::<u64>()?;
     debug!("Downloading file of size: {}", file_size);
 
     //start download in chunks
-    let mut file = File::create(file_path)?;
     let mut downloaded: u64 = 0;
-    let mut stream = res.bytes_stream();
+    let mut buffer = [0; CHUNK_SIZE];
+    let mut body = res.into_reader();
     debug!("Starting download from {}", url.as_ref());
-    while let Some(item) = stream.next().await {
-        let chunk = item?;
-        file.write_all(&chunk)?;
-        if let Some(pb) = &pb {
-            let new = min(downloaded + (chunk.len() as u64), file_size);
-            downloaded = new;
-            pb.set_position(new);
+    {
+        let mut file = File::create(file_path)?;
+        while let Ok(n) = body.read(&mut buffer) {
+            file.write_all(&buffer[0..n])?;
+            downloaded += n as u64;
+
+            cb(downloaded, n as u64);
+
+            if n == 0 {
+                break;
+            }
         }
     }
     let finished = File::open(file_path)?;
     debug!("Finished download to {}", file_path.display());
 
-    if let Some(pb) = &pb {
-        pb.finish_with_message(format!(
-            "Downloaded {}!",
-            file_path.file_name().unwrap().to_string_lossy()
-        ));
-    }
     Ok(finished)
 }
 
@@ -77,11 +65,11 @@ pub async fn download_file_with_progress(
 /// # Params
 /// * url - Url to download from
 /// * file_path - Full path to save file to
-pub async fn download_file(
+pub fn download_file(
     url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
 ) -> Result<File, ThermiteError> {
-    download_file_with_progress(url, file_path.as_ref(), None).await
+    download_file_with_progress(url, file_path.as_ref(), |_, _| {})
 }
 
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
@@ -240,7 +228,7 @@ where
         }
 
         // add 'thunderstore_author.txt' using the provided author name
-        fs::write(author_file, &author)?;
+        fs::write(author_file, author)?;
     }
 
     Ok(())
@@ -253,7 +241,7 @@ where
 /// * target_dir - directory to install to
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_mod<'a>(
+pub fn install_mod(
     author: impl AsRef<str>,
     zip_file: &File,
     target_dir: impl AsRef<Path>,
@@ -266,7 +254,7 @@ pub fn install_mod<'a>(
 /// # Params
 /// * zip_file - compressed mod file
 /// * game_path - the path of the Titanfall 2 install
-pub async fn install_northstar(
+pub fn install_northstar(
     zip_file: &File,
     game_path: impl AsRef<Path>,
 ) -> Result<(), ThermiteError> {

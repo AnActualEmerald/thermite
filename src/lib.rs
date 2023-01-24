@@ -28,7 +28,7 @@ pub mod prelude {
         install_with_sanity, uninstall,
     };
     pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
+    #[cfg(feature = "steam")]
+    pub use crate::core::{steam_libraries, titanfall};
     pub use crate::error::ThermiteError;
-    // reexport indicatif for progress bars
-    pub use indicatif;
 }
