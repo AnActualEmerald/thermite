@@ -1,6 +1,6 @@
 [package]
 name = "libthermite"
-version = "0.5.1"
+version = "0.5.2-alpha.1"
 edition = "2021"
 description = "Crate for managing Northstar mods"
 license = "MIT"
@@ -19,7 +19,7 @@ json5 = "0.4.1"
 log = "0.4.17"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"
-steamlocate = { version = "1.1.0", optional = true }
+steamlocate = { version = "1.1.1", optional = true }
 thiserror = "1.0.38"
 ureq = "2.6.2"
 zip = "0.6.3"
