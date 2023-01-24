@@ -2,11 +2,11 @@
 //! ```no_run
 //! use thermite::prelude::*;
 //!
-//! async fn example() {
-//!     let index = get_package_index().await.unwrap();
+//! fn example() {
+//!     let index = get_package_index().unwrap();
 //!     if let Some(md) = index.iter().find(|e| e.name == "server_utilities") {
 //!         let latest = md.get_latest().unwrap();
-//!         let zipped = download_file(&latest.url, "server_utils.zip").await.unwrap();
+//!         let zipped = download_file(&latest.url, "server_utils.zip").unwrap();
 //!         install_mod(&md.author, &zipped, "mods").unwrap();
 //!     }    
 //! }

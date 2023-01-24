@@ -2,9 +2,8 @@ use std::{fs, path::Path};
 
 use thermite::prelude::*;
 
-#[tokio::main]
-async fn main() {
-    let index = get_package_index().await.unwrap();
+fn main() {
+    let index = get_package_index().unwrap();
     let Some(utils) = index
         .iter()
         .find(|v| v.name.to_lowercase() == "server_utilities") else {
@@ -12,9 +11,7 @@ async fn main() {
             return;
     };
 
-    let file = download_file(&utils.get_latest().unwrap().url, "utils.zip")
-        .await
-        .unwrap();
+    let file = download_file(&utils.get_latest().unwrap().url, "utils.zip").unwrap();
 
     //install_mod will panic if the directory doesn't exist
     if !Path::new("mods").try_exists().unwrap() {
