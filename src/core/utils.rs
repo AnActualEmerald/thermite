@@ -3,12 +3,11 @@ use crate::model::EnabledMods;
 use crate::model::InstalledMod;
 use crate::model::Mod;
 
-use log::debug;
-use log::error;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use tracing::{debug, error};
 
 pub struct TempDir {
     pub path: PathBuf,
@@ -53,6 +52,12 @@ pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>,
             .split('-')
             .nth(1)
             .ok_or_else(|| ThermiteError::DepError(dep.as_ref().into()))?;
+
+        if dep_name.to_lowercase() == "northstar" {
+            debug!("Skip unfiltered Northstar dependency");
+            continue;
+        }
+
         if let Some(d) = index.iter().find(|f| f.name == dep_name) {
             valid.push(d.clone());
         } else {

@@ -9,7 +9,7 @@ use crate::{core::utils::TempDir, error::ThermiteError};
 
 use zip::ZipArchive;
 
-use log::{debug, trace};
+use tracing::{debug, trace};
 
 const CHUNK_SIZE: usize = 1024;
 

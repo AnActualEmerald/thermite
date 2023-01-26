@@ -1,4 +1,3 @@
-use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::{
@@ -9,6 +8,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use tracing::{debug, error};
 
 use crate::error::ThermiteError;
 
