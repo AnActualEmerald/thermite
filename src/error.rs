@@ -6,6 +6,8 @@ use std::{
 
 use thiserror::Error;
 
+pub type Result<T> = std::result::Result<T, ThermiteError>;
+
 #[derive(Error, Debug)]
 pub enum ThermiteError {
     #[error("No such file {0:?}")]

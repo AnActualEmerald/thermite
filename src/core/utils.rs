@@ -3,12 +3,11 @@ use crate::model::EnabledMods;
 use crate::model::InstalledMod;
 use crate::model::Mod;
 
-use log::debug;
-use log::error;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use tracing::{debug, error};
 
 pub struct TempDir {
     pub path: PathBuf,
@@ -53,6 +52,12 @@ pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>,
             .split('-')
             .nth(1)
             .ok_or_else(|| ThermiteError::DepError(dep.as_ref().into()))?;
+
+        if dep_name.to_lowercase() == "northstar" {
+            debug!("Skip unfiltered Northstar dependency");
+            continue;
+        }
+
         if let Some(d) = index.iter().find(|f| f.name == dep_name) {
             valid.push(d.clone());
         } else {
@@ -135,6 +140,10 @@ pub(crate) mod steam {
     use std::path::PathBuf;
     use steamlocate::SteamDir;
 
+    pub fn steam_dir() -> Option<PathBuf> {
+        SteamDir::locate().map(|v| v.path)
+    }
+
     pub fn steam_libraries() -> Option<Vec<PathBuf>> {
         let mut steamdir = SteamDir::locate()?;
         let folders = steamdir.libraryfolders();
@@ -144,5 +153,51 @@ pub(crate) mod steam {
     pub fn titanfall() -> Option<PathBuf> {
         let mut steamdir = SteamDir::locate()?;
         Some(steamdir.app(&1237970)?.path.clone())
+    }
+}
+
+#[cfg(all(target_os = "linux", feature = "proton"))]
+pub(crate) mod proton {
+    use flate2::read::GzDecoder;
+    use std::{fs::File, path::Path};
+    use tar::Archive;
+    use tracing::debug;
+
+    use crate::{
+        core::manage::download_file,
+        error::{Result, ThermiteError},
+    };
+    const BASE_URL: &str = "https://github.com/cyrv6737/NorthstarProton/releases/";
+
+    /// Returns the latest tag from the NorthstarProton repo
+    pub fn latest_release() -> Result<String> {
+        let url = format!("{}latest", BASE_URL);
+        let res = ureq::get(&url).call()?;
+        debug!("{:#?}", res);
+        let location = res.get_url();
+
+        Ok(location
+            .split('/')
+            .last()
+            .ok_or_else(|| ThermiteError::MiscError("Malformed location URL".into()))?
+            .to_owned())
+    }
+    /// Convinience function for downloading a given tag from the NorthstarProton repo
+    pub fn download_ns_proton(tag: impl AsRef<str>, output: impl AsRef<Path>) -> Result<File> {
+        let url = format!(
+            "{}download/{}/NorthstarProton-{}.tar.gz",
+            BASE_URL,
+            tag.as_ref(),
+            tag.as_ref().trim_matches('v')
+        );
+        download_file(url, output)
+    }
+
+    /// Extract the NorthstarProton tarball into a given directory
+    pub fn install_ns_proton(archive: &File, dest: impl AsRef<Path>) -> Result<()> {
+        let mut tarball = Archive::new(GzDecoder::new(archive));
+        tarball.unpack(dest)?;
+
+        Ok(())
     }
 }
