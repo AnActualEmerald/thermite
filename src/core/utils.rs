@@ -151,3 +151,36 @@ pub(crate) mod steam {
         Some(steamdir.app(&1237970)?.path.clone())
     }
 }
+
+#[cfg(all(target_os = "linux", feature = "proton"))]
+pub(crate) mod proton {
+    use std::{fs::File, path::Path};
+    use flate2::read::GzDecoder;
+    use tar::Archive;
+
+    use crate::{error::{Result, ThermiteError}, core::manage::download_file};
+    const BASE_URL: &str = "https://github.com/cyrv6737/NorthstarProton/releases/";
+
+    /// Returns the latest tag from the NorthstarProton repo
+    pub fn latest_release() -> Result<String> {
+        let url = format!("{}latest", BASE_URL);
+        let res = ureq::get(&url).call()?;
+        let location = res.header("location").ok_or_else(|| ThermiteError::MiscError("Response missing 'location' header".into()))?;
+
+        Ok(location.split('/').last().ok_or_else(|| ThermiteError::MiscError("Malformed location URL".into()))?.to_owned())
+    }
+    /// Convinience function for downloading a given tag from the NorthstarProton repo
+    pub fn download_ns_proton(tag: impl AsRef<str>, output: impl AsRef<Path>) -> Result<File> {
+        let url = format!("{0}download/{1}/NorthstarProton-{1}.tar.gz", BASE_URL, tag.as_ref());
+        download_file(url, output)
+    }
+
+    /// Extract the NorthstarProton tarball into a given directory
+    pub fn install_ns_proton(archive: &File, dest: impl AsRef<Path>) -> Result<()> {
+        let mut tarball = Archive::new(GzDecoder::new(archive));
+        tarball.unpack(dest)?;
+
+        Ok(())
+    }
+
+}
