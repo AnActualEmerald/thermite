@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsString,
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
@@ -258,8 +259,23 @@ pub fn install_northstar(
     zip_file: &File,
     game_path: impl AsRef<Path>,
 ) -> Result<(), ThermiteError> {
+    use std::io::Read;
     let target = game_path.as_ref();
     let mut archive = ZipArchive::new(zip_file)?;
+
+    let manifest = archive
+        .by_name("manifest.json")
+        .ok()
+        .map(|mut v| {
+            let mut buf = Vec::with_capacity(v.size() as usize);
+            if let Err(e) = v.read_to_end(&mut buf) {
+                Err(e)
+            } else {
+                Ok(buf)
+            }
+        })
+        .transpose()?;
+
     for i in 0..archive.len() {
         let mut f = archive.by_index(i).unwrap();
 
@@ -289,6 +305,55 @@ pub fn install_northstar(
             trace!("Write file {}", out.display());
 
             io::copy(&mut f, &mut outfile)?;
+        }
+    }
+
+    // add manifest and author file
+    for child in game_path
+        .as_ref()
+        .join("R2Northstar")
+        .join("mods")
+        .read_dir()?
+    {
+        let Ok(child) = child else {
+            continue;
+        };
+        if ![
+            OsString::from("Northstar.Client"),
+            OsString::from("Northstar.Custom"),
+            OsString::from("Northstar.CustomServers"),
+        ]
+        .contains(&child.file_name())
+        {
+            continue;
+        }
+
+        if child.file_type()?.is_dir() {
+            let dir = child.path();
+            let manifest_file = dir.join("manifest.json");
+            let author_file = dir.join("thunderstore_author.txt");
+
+            // write the manifest to the mod's directory
+            {
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(manifest_file)?;
+                if let Some(manifest) = &manifest {
+                    file.write_all(&manifest)?;
+                }
+            }
+
+            // write the author file to the mod's directory
+            {
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(author_file)?;
+                file.write(b"northstar")?;
+            }
         }
     }
 

@@ -140,6 +140,10 @@ pub(crate) mod steam {
     use std::path::PathBuf;
     use steamlocate::SteamDir;
 
+    pub fn steam_dir() -> Option<PathBuf> {
+        SteamDir::locate().map(|v| v.path)
+    }
+
     pub fn steam_libraries() -> Option<Vec<PathBuf>> {
         let mut steamdir = SteamDir::locate()?;
         let folders = steamdir.libraryfolders();
@@ -154,24 +158,38 @@ pub(crate) mod steam {
 
 #[cfg(all(target_os = "linux", feature = "proton"))]
 pub(crate) mod proton {
-    use std::{fs::File, path::Path};
     use flate2::read::GzDecoder;
+    use std::{fs::File, path::Path};
     use tar::Archive;
+    use tracing::debug;
 
-    use crate::{error::{Result, ThermiteError}, core::manage::download_file};
+    use crate::{
+        core::manage::download_file,
+        error::{Result, ThermiteError},
+    };
     const BASE_URL: &str = "https://github.com/cyrv6737/NorthstarProton/releases/";
 
     /// Returns the latest tag from the NorthstarProton repo
     pub fn latest_release() -> Result<String> {
         let url = format!("{}latest", BASE_URL);
         let res = ureq::get(&url).call()?;
-        let location = res.header("location").ok_or_else(|| ThermiteError::MiscError("Response missing 'location' header".into()))?;
+        debug!("{:#?}", res);
+        let location = res.get_url();
 
-        Ok(location.split('/').last().ok_or_else(|| ThermiteError::MiscError("Malformed location URL".into()))?.to_owned())
+        Ok(location
+            .split('/')
+            .last()
+            .ok_or_else(|| ThermiteError::MiscError("Malformed location URL".into()))?
+            .to_owned())
     }
     /// Convinience function for downloading a given tag from the NorthstarProton repo
     pub fn download_ns_proton(tag: impl AsRef<str>, output: impl AsRef<Path>) -> Result<File> {
-        let url = format!("{0}download/{1}/NorthstarProton-{1}.tar.gz", BASE_URL, tag.as_ref());
+        let url = format!(
+            "{}download/{}/NorthstarProton-{}.tar.gz",
+            BASE_URL,
+            tag.as_ref(),
+            tag.as_ref().trim_matches('v')
+        );
         download_file(url, output)
     }
 
@@ -182,5 +200,4 @@ pub(crate) mod proton {
 
         Ok(())
     }
-
 }

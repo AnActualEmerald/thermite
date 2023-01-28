@@ -212,6 +212,7 @@ impl EnabledMods {
     }
 }
 
+/// Represents an installed package
 #[derive(Debug, Clone)]
 pub struct InstalledMod {
     pub manifest: Manifest,

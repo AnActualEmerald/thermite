@@ -28,9 +28,9 @@ pub mod prelude {
         install_with_sanity, uninstall,
     };
     pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
-    #[cfg(feature = "steam")]
-    pub use crate::core::{steam_libraries, titanfall};
     #[cfg(all(target_os = "linux", feature = "proton"))]
-    pub use crate::core::{latest_release, download_ns_proton, install_ns_proton};
+    pub use crate::core::{download_ns_proton, install_ns_proton, latest_release};
+    #[cfg(feature = "steam")]
+    pub use crate::core::{steam_dir, steam_libraries, titanfall};
     pub use crate::error::ThermiteError;
 }
