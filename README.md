@@ -1,12 +1,16 @@
 # thermite
 Rust crate for managing Northstar and interacting with Thunderstore
 
+### v0.5.2
+- add `proton` feature with `latest_release`, `download_ns_proton`, and `install_ns_proton` functions
+- change dependency filter to make sure Northstar itself doesn't slip through
+- properly add `manifest.json` and `thunderstore_author.txt` to the Northstar base mods
+
 ### v0.5.0
 - change `install_with_progress` to take a function rather than an indicatif bar
 - change to `ureq` for http requests, making all functions synchronus
 - add `InstalledMod` struct which contains a mod's `mod.json`, `manifest.json`, `thunderstore_author.txt`, and the path of the root directory
 - change `find_mods` to return a vec of `InstalledMod`
-
 
 ### v0.4.0
 - move exported functions from crate root to `prelude` module
