@@ -18,14 +18,14 @@ const CHUNK_SIZE: usize = 1024;
 /// # Params
 /// * url - URL to download from
 /// * file_path - Full path to save file to
-/// * cb - Callback to call with every chunk read. Params are |current_bytes: u64, delta_bytes: u64|
+/// * cb - Callback to call with every chunk read. Params are |delta_bytes: u64, current_bytes: u64, total_size: u64|
 pub fn download_file_with_progress<F>(
     url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
     cb: F,
 ) -> Result<File, ThermiteError>
 where
-    F: Fn(u64, u64),
+    F: Fn(u64, u64, u64),
 {
     let file_path = file_path.as_ref();
 
@@ -49,7 +49,7 @@ where
             file.write_all(&buffer[0..n])?;
             downloaded += n as u64;
 
-            cb(downloaded, n as u64);
+            cb(n as u64, downloaded, file_size);
 
             if n == 0 {
                 break;
@@ -70,7 +70,7 @@ pub fn download_file(
     url: impl AsRef<str>,
     file_path: impl AsRef<Path>,
 ) -> Result<File, ThermiteError> {
-    download_file_with_progress(url, file_path.as_ref(), |_, _| {})
+    download_file_with_progress(url, file_path.as_ref(), |_, _, _| {})
 }
 
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
