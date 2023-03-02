@@ -1,6 +1,6 @@
 [package]
 name = "libthermite"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 description = "Crate for managing Northstar mods"
 license = "MIT"
@@ -26,8 +26,10 @@ tracing = "0.1.37"
 ureq = "2.6.2"
 zip = "0.6.3"
 
-
 [features]
 default = []
 steam = ["steamlocate"]
 proton = ["tar", "flate2"]
+
+[dev-dependencies]
+indicatif = "0.17.3"
