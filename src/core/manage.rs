@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
-    fs::{self, File, OpenOptions},
-    io::{self, Write},
+    fs::{self, OpenOptions},
+    io::{self, BufWriter, Read, Seek, Write},
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -17,18 +17,11 @@ const CHUNK_SIZE: usize = 1024;
 /// Download a file and update a progress bar
 /// # Params
 /// * url - URL to download from
-/// * file_path - Full path to save file to
 /// * cb - Callback to call with every chunk read. Params are |delta_bytes: u64, current_bytes: u64, total_size: u64|
-pub fn download_file_with_progress<F>(
-    url: impl AsRef<str>,
-    file_path: impl AsRef<Path>,
-    cb: F,
-) -> Result<File, ThermiteError>
+pub fn download_with_progress<F>(url: impl AsRef<str>, cb: F) -> Result<Vec<u8>, ThermiteError>
 where
     F: Fn(u64, u64, u64),
 {
-    let file_path = file_path.as_ref();
-
     //send the request
     let res = ureq::get(url.as_ref()).call()?;
 
@@ -43,34 +36,28 @@ where
     let mut buffer = [0; CHUNK_SIZE];
     let mut body = res.into_reader();
     debug!("Starting download from {}", url.as_ref());
-    {
-        let mut file = File::create(file_path)?;
-        while let Ok(n) = body.read(&mut buffer) {
-            file.write_all(&buffer[0..n])?;
-            downloaded += n as u64;
+    //initialize a buffer the size of the file
+    //wrap buffer in a buffered writer
+    let mut file = BufWriter::new(Vec::with_capacity(file_size as usize));
+    while let Ok(n) = body.read(&mut buffer) {
+        file.write_all(&buffer[0..n])?;
+        downloaded += n as u64;
 
-            cb(n as u64, downloaded, file_size);
+        cb(n as u64, downloaded, file_size);
 
-            if n == 0 {
-                break;
-            }
+        if n == 0 {
+            break;
         }
     }
-    let finished = File::open(file_path)?;
-    debug!("Finished download to {}", file_path.display());
 
-    Ok(finished)
+    Ok(file.into_inner().expect("Unable to unwrap buffer writer"))
 }
 
-/// Wrapper for calling `download_file_with_progress` without a progress bar
+/// Wrapper for calling `download_with_progress` without a progress bar
 /// # Params
 /// * url - Url to download from
-/// * file_path - Full path to save file to
-pub fn download_file(
-    url: impl AsRef<str>,
-    file_path: impl AsRef<Path>,
-) -> Result<File, ThermiteError> {
-    download_file_with_progress(url, file_path.as_ref(), |_, _, _| {})
+pub fn download(url: impl AsRef<str>) -> Result<Vec<u8>, ThermiteError> {
+    download_with_progress(url, |_, _, _| {})
 }
 
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
@@ -94,18 +81,19 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
 ///     - returns `bool`
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_with_sanity<F>(
+pub fn install_with_sanity<T, F>(
     author: impl AsRef<str>,
-    zip_file: &File,
+    zip_file: T,
     target_dir: impl AsRef<Path>,
     extract_dir: Option<&Path>,
     sanity_check: F,
 ) -> Result<(), ThermiteError>
 where
-    F: FnOnce(&File) -> bool,
+    T: Read + Seek,
+    F: FnOnce(&T) -> bool,
 {
     let target_dir = target_dir.as_ref();
-    if !sanity_check(zip_file) {
+    if !sanity_check(&zip_file) {
         return Err(ThermiteError::SanityError);
     }
     debug!("Starting mod insall");
@@ -242,11 +230,14 @@ where
 /// * target_dir - directory to install to
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-pub fn install_mod(
+pub fn install_mod<T>(
     author: impl AsRef<str>,
-    zip_file: &File,
+    zip_file: T,
     target_dir: impl AsRef<Path>,
-) -> Result<(), ThermiteError> {
+) -> Result<(), ThermiteError>
+where
+    T: Read + Seek,
+{
     install_with_sanity(author, zip_file, target_dir, None, |_| true)
 }
 
@@ -256,10 +247,9 @@ pub fn install_mod(
 /// * zip_file - compressed mod file
 /// * game_path - the path of the Titanfall 2 install
 pub fn install_northstar(
-    zip_file: &File,
+    zip_file: impl Read + Seek + Copy,
     game_path: impl AsRef<Path>,
 ) -> Result<(), ThermiteError> {
-    use std::io::Read;
     let target = game_path.as_ref();
     let mut archive = ZipArchive::new(zip_file)?;
 

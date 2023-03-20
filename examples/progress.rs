@@ -1,5 +1,6 @@
-use std::{fs, path::Path};
+use std::io::{BufReader, Cursor};
 use std::time::Duration;
+use std::{fs, path::Path};
 
 use thermite::prelude::*;
 
@@ -13,15 +14,21 @@ fn main() {
     };
 
     let pb = indicatif::ProgressBar::new(utils.get_latest().unwrap().file_size)
-    .with_style(indicatif::ProgressStyle::default_bar().progress_chars("->.").template("{msg} {wide_bar} {bytes}/{total_bytes}").unwrap())
-    .with_message("Downloading Fifty.Server_Utilities");
+        .with_style(
+            indicatif::ProgressStyle::default_bar()
+                .progress_chars("->.")
+                .template("{msg} {wide_bar} {bytes}/{total_bytes}")
+                .unwrap(),
+        )
+        .with_message("Downloading Fifty.Server_Utilities");
 
-    let file = download_file_with_progress(&utils.get_latest().unwrap().url, "utils.zip", |delta, _, _| {
+    let file = download_with_progress(&utils.get_latest().unwrap().url, |delta, _, _| {
         pb.inc(delta);
         //slow down the download to show off the progress bar
         //(you probably shouldn't do this in production)
         std::thread::sleep(Duration::from_millis(100));
-    }).unwrap();
+    })
+    .unwrap();
 
     pb.finish_with_message("Done!");
 
@@ -29,5 +36,5 @@ fn main() {
     if !Path::new("mods").try_exists().unwrap() {
         fs::create_dir("mods").unwrap();
     }
-    install_mod("Fifty", &file, "mods").unwrap();
-} 
+    install_mod("Fifty", Cursor::new(&file), "mods").unwrap();
+}
