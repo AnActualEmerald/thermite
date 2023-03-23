@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
     fs::{self, OpenOptions},
-    io::{self, BufWriter, Read, Seek, Write},
+    io::{self, Read, Seek, Write},
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -337,7 +337,7 @@ pub fn install_northstar(
                     .truncate(true)
                     .open(manifest_file)?;
                 if let Some(manifest) = &manifest {
-                    file.write_all(&manifest)?;
+                    file.write_all(manifest)?;
                 }
             }
 
@@ -348,7 +348,7 @@ pub fn install_northstar(
                     .write(true)
                     .truncate(true)
                     .open(author_file)?;
-                file.write(b"northstar")?;
+                file.write_all(b"northstar")?;
             }
         }
     }

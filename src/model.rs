@@ -73,10 +73,10 @@ impl ModVersion {
         if self.file_size / 1_000_000 >= 1 {
             let size = self.file_size as f64 / 1_048_576f64;
 
-            format!("{:.2} MB", size)
+            format!("{size:.2} MB")
         } else {
             let size = self.file_size as f64 / 1024f64;
-            format!("{:.2} KB", size)
+            format!("{size:.2} KB")
         }
     }
 }
@@ -89,7 +89,7 @@ impl From<&ModVersion> for ModVersion {
 
 impl AsRef<ModVersion> for ModVersion {
     fn as_ref(&self) -> &ModVersion {
-        &self
+        self
     }
 }
 
