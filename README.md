@@ -1,6 +1,13 @@
 # thermite
 Rust crate for managing Northstar and interacting with Thunderstore
 
+
+### v0.6.0
+- rename `download_file` and `download_file_with_progress` to `download` and `download_with_progress`
+- make download and install functions more generic
+  - download functions now accept an output `Write`r to write to 
+  - install functions now accept types implementing `Read + Seek`
+
 ### v0.5.2
 - add `proton` feature with `latest_release`, `download_ns_proton`, and `install_ns_proton` functions
 - change dependency filter to make sure Northstar itself doesn't slip through
