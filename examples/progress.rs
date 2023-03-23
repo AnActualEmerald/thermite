@@ -1,4 +1,4 @@
-use std::io::{BufReader, Cursor};
+use std::io::{BufReader, Cursor, BufWriter};
 use std::time::Duration;
 use std::{fs, path::Path};
 
@@ -22,7 +22,8 @@ fn main() {
         )
         .with_message("Downloading Fifty.Server_Utilities");
 
-    let file = download_with_progress(&utils.get_latest().unwrap().url, |delta, _, _| {
+    let mut buffer = vec![];
+    download_with_progress(&mut buffer, &utils.get_latest().unwrap().url, |delta, _, _| {
         pb.inc(delta);
         //slow down the download to show off the progress bar
         //(you probably shouldn't do this in production)
@@ -36,5 +37,5 @@ fn main() {
     if !Path::new("mods").try_exists().unwrap() {
         fs::create_dir("mods").unwrap();
     }
-    install_mod("Fifty", Cursor::new(&file), "mods").unwrap();
+    install_mod("Fifty", Cursor::new(buffer), "mods").unwrap();
 }

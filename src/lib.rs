@@ -7,7 +7,8 @@
 //!     let index = get_package_index().unwrap();
 //!     if let Some(md) = index.iter().find(|e| e.name == "server_utilities") {
 //!         let latest = md.get_latest().unwrap();
-//!         let zipped = download(&latest.url).unwrap();
+//!         let mut zipped = vec![];
+//!         download(&mut zipped, &latest.url).unwrap();
 //!         install_mod(&md.author, Cursor::new(zipped), "mods").unwrap();
 //!     }    
 //! }

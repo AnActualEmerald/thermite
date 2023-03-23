@@ -11,11 +11,12 @@ fn main() {
             return;
     };
 
-    let file = download(&utils.get_latest().unwrap().url).unwrap();
+    let mut buffer = vec![];
+    download(&mut buffer, &utils.get_latest().unwrap().url).unwrap();
 
     //install_mod will panic if the directory doesn't exist
     if !Path::new("mods").try_exists().unwrap() {
         fs::create_dir("mods").unwrap();
     }
-    install_mod("Fifty", Cursor::new(file), "mods").unwrap();
+    install_mod("Fifty", Cursor::new(buffer), "mods").unwrap();
 }

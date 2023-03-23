@@ -16,9 +16,13 @@ const CHUNK_SIZE: usize = 1024;
 
 /// Download a file and update a progress bar
 /// # Params
+/// * output - Writer to write the data to
 /// * url - URL to download from
 /// * cb - Callback to call with every chunk read. Params are |delta_bytes: u64, current_bytes: u64, total_size: u64|
-pub fn download_with_progress<F>(url: impl AsRef<str>, cb: F) -> Result<Vec<u8>, ThermiteError>
+/// 
+/// # Returns
+/// * total bytes downloaded & written
+pub fn download_with_progress<F>(mut output: impl Write, url: impl AsRef<str>, cb: F) -> Result<u64, ThermiteError>
 where
     F: Fn(u64, u64, u64),
 {
@@ -36,11 +40,9 @@ where
     let mut buffer = [0; CHUNK_SIZE];
     let mut body = res.into_reader();
     debug!("Starting download from {}", url.as_ref());
-    //initialize a buffer the size of the file
-    //wrap buffer in a buffered writer
-    let mut file = BufWriter::new(Vec::with_capacity(file_size as usize));
+
     while let Ok(n) = body.read(&mut buffer) {
-        file.write_all(&buffer[0..n])?;
+        output.write_all(&buffer[0..n])?;
         downloaded += n as u64;
 
         cb(n as u64, downloaded, file_size);
@@ -50,14 +52,18 @@ where
         }
     }
 
-    Ok(file.into_inner().expect("Unable to unwrap buffer writer"))
+    Ok(downloaded)
 }
 
 /// Wrapper for calling `download_with_progress` without a progress bar
 /// # Params
+/// * output - Writer to write the data to
 /// * url - Url to download from
-pub fn download(url: impl AsRef<str>) -> Result<Vec<u8>, ThermiteError> {
-    download_with_progress(url, |_, _, _| {})
+/// 
+/// # Returns
+/// * total bytes downloaded & written
+pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64, ThermiteError> {
+    download_with_progress(output, url, |_, _, _| {})
 }
 
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
