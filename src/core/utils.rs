@@ -159,12 +159,12 @@ pub(crate) mod steam {
 #[cfg(all(target_os = "linux", feature = "proton"))]
 pub(crate) mod proton {
     use flate2::read::GzDecoder;
-    use std::{fs::File, path::Path};
+    use std::{fs::File, io::Write, path::Path};
     use tar::Archive;
     use tracing::debug;
 
     use crate::{
-        core::manage::download_file,
+        core::manage::download,
         error::{Result, ThermiteError},
     };
     const BASE_URL: &str = "https://github.com/cyrv6737/NorthstarProton/releases/";
@@ -183,14 +183,14 @@ pub(crate) mod proton {
             .to_owned())
     }
     /// Convinience function for downloading a given tag from the NorthstarProton repo
-    pub fn download_ns_proton(tag: impl AsRef<str>, output: impl AsRef<Path>) -> Result<File> {
+    pub fn download_ns_proton(tag: impl AsRef<str>, output: impl Write) -> Result<u64> {
         let url = format!(
             "{}download/{}/NorthstarProton-{}.tar.gz",
             BASE_URL,
             tag.as_ref(),
             tag.as_ref().trim_matches('v')
         );
-        download_file(url, output)
+        download(output, url)
     }
 
     /// Extract the NorthstarProton tarball into a given directory
