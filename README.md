@@ -1,6 +1,8 @@
 # thermite
 Rust crate for managing Northstar and interacting with Thunderstore
 
+### v0.6.1
+- Update proton feature to use the new download functions
 
 ### v0.6.0
 - rename `download_file` and `download_file_with_progress` to `download` and `download_with_progress`
