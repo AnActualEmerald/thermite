@@ -1,6 +1,10 @@
 # thermite
 Rust crate for managing Northstar and interacting with Thunderstore
 
+### v0.6.2
+- `get_enabled_mods` now properly returns a `ThermiteError::MissingFile` rather than an IO error if the file doesn't exist
+- added `CORE_MODS` constant
+
 ### v0.6.1
 - Update proton feature to use the new download functions
 
