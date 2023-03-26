@@ -22,6 +22,12 @@ pub mod core;
 pub mod error;
 pub mod model;
 
+pub const CORE_MODS: [&str; 3] = [
+    "Northstar.Custom",
+    "Northstar.CustomServers",
+    "Northstar.Client",
+];
+
 // Important functions and structs
 pub mod prelude {
     pub use crate::api::get_package_index;
@@ -35,4 +41,5 @@ pub mod prelude {
     #[cfg(feature = "steam")]
     pub use crate::core::{steam_dir, steam_libraries, titanfall};
     pub use crate::error::ThermiteError;
+    pub use crate::CORE_MODS;
 }

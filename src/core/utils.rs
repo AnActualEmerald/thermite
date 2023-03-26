@@ -69,14 +69,14 @@ pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>,
 
 /// Get `enabledmods.json` from the given directory, if it exists
 pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteError> {
-    let path = dir.as_ref().join("enabledmods.json");
+    let path = dir.as_ref().canonicalize()?.join("enabledmods.json");
     if path.exists() {
-        let raw = fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&raw)?)
+        let raw = fs::read_to_string(&path)?;
+        let mut mods: EnabledMods = serde_json::from_str(&raw)?;
+        mods.set_path(path);
+        Ok(mods)
     } else {
-        Err(ThermiteError::MissingFile(Box::new(
-            dir.as_ref().to_path_buf(),
-        )))
+        Err(ThermiteError::MissingFile(Box::new(path)))
     }
 }
 

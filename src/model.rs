@@ -104,6 +104,8 @@ pub struct Manifest {
 
 // enabledmods.json
 
+/// Represents an enabledmods.json file
+/// Automatically writes any changes made when dropped (call dont_save to disable)
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnabledMods {
     #[serde(rename = "Northstar.Client")]
@@ -158,7 +160,11 @@ impl Drop for EnabledMods {
 
             if hash != self.hash {
                 if let Err(e) = self.save() {
-                    error!("Encountered error while saving enabled_mods.json: {}", e);
+                    error!(
+                        "Encountered error while saving enabled_mods.json to {}:\n {}",
+                        self.path.as_ref().unwrap().display(),
+                        e
+                    );
                 } else {
                     debug!("Wrote file at {}", self.path.as_ref().unwrap().display())
                 }
@@ -209,6 +215,10 @@ impl EnabledMods {
 
     pub fn path(&self) -> Option<&PathBuf> {
         self.path.as_ref()
+    }
+
+    pub fn set_path(&mut self, path: impl Into<Option<PathBuf>>) {
+        self.path = path.into();
     }
 }
 
