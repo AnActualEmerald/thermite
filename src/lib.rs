@@ -23,9 +23,9 @@ pub mod error;
 pub mod model;
 
 pub const CORE_MODS: [&str; 3] = [
-    "Northstar.Custom",
-    "Northstar.CustomServers",
-    "Northstar.Client",
+    "northstar.custom",
+    "northstar.customservers",
+    "northstar.client",
 ];
 
 // Important functions and structs

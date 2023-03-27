@@ -10,7 +10,7 @@ use std::{
 };
 use tracing::{debug, error};
 
-use crate::error::ThermiteError;
+use crate::{error::ThermiteError, CORE_MODS};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
@@ -174,26 +174,26 @@ impl Drop for EnabledMods {
 }
 
 impl EnabledMods {
-    ///Returns a default EnabledMods with the path property set
+    /// Returns a default EnabledMods with the path property set
     pub fn default_with_path(path: impl Into<PathBuf>) -> Self {
         let mut s = Self::default();
         s.path = Some(path.into());
         s
     }
 
-    ///Don't attempt to write the file when dropped
+    /// Don't attempt to write the file when dropped
     pub fn dont_save(&mut self) {
         self.do_save = false;
     }
 
-    ///Do attempt to write the file when dropped
+    /// Do attempt to write the file when dropped
     pub fn do_save(&mut self) {
         self.do_save = true;
     }
 
-    ///Saves the file using the path it was loaded from
+    /// Saves the file using the path it was loaded from
     ///
-    ///Returns an error if the path isn't set
+    /// Returns an error if the path isn't set
     pub fn save(&self) -> Result<(), ThermiteError> {
         let parsed = serde_json::to_string_pretty(self)?;
         if let Some(path) = &self.path {
@@ -208,6 +208,7 @@ impl EnabledMods {
         }
     }
 
+    /// Saves the file using the provided path
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
         self.path = Some(path.as_ref().to_owned());
         self.save()
@@ -220,6 +221,47 @@ impl EnabledMods {
     pub fn set_path(&mut self, path: impl Into<Option<PathBuf>>) {
         self.path = path.into();
     }
+    
+    /// Returns the current state of a mod
+    ///
+    /// # Warning
+    /// Returns `true` if a mod is missing from the file
+    pub fn is_enabled(&self, name: impl AsRef<str>) -> bool {
+        *self.mods.get(name.as_ref()).unwrap_or(&true)
+    }
+
+    /// Get the current state of a mod if it exists
+    pub fn get(&self , name: impl AsRef<str>) -> Option<bool> {
+        if CORE_MODS.contains(&name.as_ref()) {
+            Some(match name.as_ref() {
+                "Northstar.Client" => self.client,
+                "Northstar.Custom" => self.custom,
+                "Northstar.CustomServers" => self.servers,
+                _ => unimplemented!(),
+            })
+        }else {
+            self.mods.get(name.as_ref()).copied()
+        }
+    }
+
+    /// Updates or inserts a mod's state
+    pub fn set(&mut self , name: impl AsRef<str>, val: bool) -> Option<bool> {
+        if CORE_MODS.contains(&name.as_ref().to_lowercase().as_str()) {
+            let prev = self.get(&name);
+            match name.as_ref().to_lowercase().as_str() {
+                "northstar.client" => self.client = val,
+                "northstar.custom" => self.custom = val,
+                "northstar.customservers" => self.servers = val,
+                _ => unimplemented!(),
+            }
+            prev
+        }else {
+            self.mods.insert(name.as_ref().to_string(), val)
+        }
+    }
+
+
+    
 }
 
 /// Represents an installed package
