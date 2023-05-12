@@ -10,7 +10,7 @@ use crate::{core::utils::TempDir, error::ThermiteError};
 
 use zip::ZipArchive;
 
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 const CHUNK_SIZE: usize = 1024;
 
@@ -19,10 +19,14 @@ const CHUNK_SIZE: usize = 1024;
 /// * output - Writer to write the data to
 /// * url - URL to download from
 /// * cb - Callback to call with every chunk read. Params are |delta_bytes: u64, current_bytes: u64, total_size: u64|
-/// 
+///
 /// # Returns
 /// * total bytes downloaded & written
-pub fn download_with_progress<F>(mut output: impl Write, url: impl AsRef<str>, cb: F) -> Result<u64, ThermiteError>
+pub fn download_with_progress<F>(
+    mut output: impl Write,
+    url: impl AsRef<str>,
+    cb: F,
+) -> Result<u64, ThermiteError>
 where
     F: Fn(u64, u64, u64),
 {
@@ -59,7 +63,7 @@ where
 /// # Params
 /// * output - Writer to write the data to
 /// * url - Url to download from
-/// 
+///
 /// # Returns
 /// * total bytes downloaded & written
 pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64, ThermiteError> {
@@ -93,7 +97,7 @@ pub fn install_with_sanity<T, F>(
     target_dir: impl AsRef<Path>,
     extract_dir: Option<&Path>,
     sanity_check: F,
-) -> Result<(), ThermiteError>
+) -> Result<Vec<PathBuf>, ThermiteError>
 where
     T: Read + Seek,
     F: FnOnce(&T) -> bool,
@@ -194,12 +198,25 @@ where
     let manifest = temp_dir.join("manifest.json");
     let author = author.as_ref();
 
+    let mut fin = vec![];
+
     // move the mod files from the temp dir to the real dir
     for submod in mods.iter_mut() {
         // the location of the mod within the temp dir
         let temp = temp_dir.join(&submod);
         // the name of the folder the mod lives in
-        let p = submod.strip_prefix("mods")?;
+        let p = match submod.strip_prefix("mods") {
+            Ok(p) => p,
+            Err(e) => {
+                warn!(
+                    "Error striping directory prefix (this usually is caused by a misformated mod)"
+                );
+                debug!("{e}");
+                // this behavior should maybe be configurable somehow
+                // TODO: use lazystatic config value here?
+                return Err(e.into());
+            }
+        };
         // the location of the mod within the target install dir
         let perm = mods_dir.join(p);
 
@@ -224,9 +241,11 @@ where
 
         // add 'thunderstore_author.txt' using the provided author name
         fs::write(author_file, author)?;
+
+        fin.push(perm);
     }
 
-    Ok(())
+    Ok(fin)
 }
 
 /// Install a mod to a directory
@@ -240,7 +259,7 @@ pub fn install_mod<T>(
     author: impl AsRef<str>,
     zip_file: T,
     target_dir: impl AsRef<Path>,
-) -> Result<(), ThermiteError>
+) -> Result<Vec<PathBuf>, ThermiteError>
 where
     T: Read + Seek,
 {
