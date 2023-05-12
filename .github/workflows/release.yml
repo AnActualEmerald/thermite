@@ -2,7 +2,8 @@ name: Publish to crates.io
 
 on:
   push: 
-   tags: 'v\d+\.\d+\.\d+.*'
+   tags: 
+    - v*.*.*
    
 
 env:
