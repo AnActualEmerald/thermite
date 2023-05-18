@@ -21,7 +21,9 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Generate coverage reports
-      uses: actions-rs/tarpaulin@v0.1.0        
+      uses: actions-rs/tarpaulin@v0.1.0    
+      with:
+        version: 'v0.25.2'
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
       with:
