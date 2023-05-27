@@ -1,4 +1,4 @@
-use std::io::{Cursor};
+use std::io::Cursor;
 use std::time::Duration;
 use std::{fs, path::Path};
 
@@ -23,12 +23,16 @@ fn main() {
         .with_message("Downloading Fifty.Server_Utilities");
 
     let mut buffer = vec![];
-    download_with_progress(&mut buffer, &utils.get_latest().unwrap().url, |delta, _, _| {
-        pb.inc(delta);
-        //slow down the download to show off the progress bar
-        //(you probably shouldn't do this in production)
-        std::thread::sleep(Duration::from_millis(100));
-    })
+    download_with_progress(
+        &mut buffer,
+        &utils.get_latest().unwrap().url,
+        |delta, _, _| {
+            pb.inc(delta);
+            //slow down the download to show off the progress bar
+            //(you probably shouldn't do this in production)
+            std::thread::sleep(Duration::from_millis(100));
+        },
+    )
     .unwrap();
 
     pb.finish_with_message("Done!");

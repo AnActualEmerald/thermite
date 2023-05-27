@@ -1,6 +1,6 @@
 use std::{
     io,
-    num::ParseIntError,
+    num::{ParseIntError, TryFromIntError},
     path::{PathBuf, StripPrefixError},
 };
 
@@ -15,7 +15,7 @@ pub enum ThermiteError {
     #[error(transparent)]
     IoError(#[from] io::Error),
     #[error("{0}")]
-    MiscError(String),
+    UnknownError(String),
     #[error("Error making network request: {0}")]
     NetworkError(Box<ureq::Error>),
     #[error(transparent)]
@@ -32,6 +32,8 @@ pub enum ThermiteError {
     MissingPath,
     #[error("Error converting string to integer: {0}")]
     ParseIntError(#[from] ParseIntError),
+    #[error("Unable to convert integer: {0}")]
+    IntConversionError(#[from] TryFromIntError),
 }
 
 // ureq::Error is ~240 bytes so we store it in a box

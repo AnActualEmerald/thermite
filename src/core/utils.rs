@@ -14,6 +14,8 @@ pub struct TempDir {
 }
 
 impl TempDir {
+    /// # Errors
+    /// - IO errors
     pub fn create(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         fs::create_dir_all(path.as_ref())?;
         Ok(TempDir {
@@ -42,8 +44,12 @@ impl Drop for TempDir {
     }
 }
 
-///Returns a list of `Mod`s publled from an index based on the dep stings
-///from Thunderstore
+/// Returns a list of `Mod`s publled from an index based on the dep stings
+/// from Thunderstore
+///
+/// # Errors
+/// - A dependency string isn't formatted like `author-name`
+/// - A dependency string isn't present in the index
 pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>, ThermiteError> {
     let mut valid = vec![];
     for dep in deps {
@@ -68,6 +74,11 @@ pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>,
 }
 
 /// Get `enabledmods.json` from the given directory, if it exists
+///
+/// # Errors
+/// - The path cannot be canonicalized (broken symlinks)
+/// - The path is not a directory
+/// - There is no `enabledmods.json` file in the provided directory
 pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteError> {
     let path = dir.as_ref().canonicalize()?.join("enabledmods.json");
     if path.exists() {
@@ -83,6 +94,11 @@ pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteEr
 /// Search a directory for mod.json files in its children
 ///
 /// Searches one level deep
+///
+/// # Errors
+/// - The path cannot be canonicalized
+/// - IO Errors
+/// - Improperly formatted JSON files
 pub fn find_mods(
     dir: impl AsRef<Path>,
 ) -> Result<Vec<Result<InstalledMod, ThermiteError>>, ThermiteError> {
@@ -99,7 +115,7 @@ pub fn find_mods(
         let mod_json = if path.try_exists()? {
             let raw = fs::read_to_string(&path)?;
             let Ok(parsed) = json5::from_str(&raw) else {
-                res.push(Err(ThermiteError::MiscError(format!("Error parsing {}", path.display()))));
+                res.push(Err(ThermiteError::UnknownError(format!("Error parsing {}", path.display()))));
                 continue;
             };
             parsed
@@ -110,7 +126,7 @@ pub fn find_mods(
         let manifest = if path.try_exists()? {
             let raw = fs::read_to_string(&path)?;
             let Ok(parsed) = serde_json::from_str(&raw) else {
-                res.push(Err(ThermiteError::MiscError(format!("Error parsing {}", path.display()))));
+                res.push(Err(ThermiteError::UnknownError(format!("Error parsing {}", path.display()))));
                 continue;
             };
             parsed
@@ -179,7 +195,7 @@ pub(crate) mod proton {
         Ok(location
             .split('/')
             .last()
-            .ok_or_else(|| ThermiteError::MiscError("Malformed location URL".into()))?
+            .ok_or_else(|| ThermiteError::UnknownError("Malformed location URL".into()))?
             .to_owned())
     }
     /// Convinience function for downloading a given tag from the NorthstarProton repo
