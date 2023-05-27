@@ -29,6 +29,9 @@ struct PackageVersion {
     _extra: HashMap<String, Value>,
 }
 
+/// # Errors
+/// * IO Erros
+/// * Unexpected response format from thunderstore
 pub fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
     let raw = ureq::get("https://northstar.thunderstore.io/c/northstar/api/v1/package/")
         .set("accept", "application/json")

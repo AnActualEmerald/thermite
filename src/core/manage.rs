@@ -16,12 +16,15 @@ const CHUNK_SIZE: usize = 1024;
 
 /// Download a file and update a progress bar
 /// # Params
-/// * output - Writer to write the data to
-/// * url - URL to download from
-/// * cb - Callback to call with every chunk read. Params are |delta_bytes: u64, current_bytes: u64, total_size: u64|
+/// * `output` - Writer to write the data to
+/// * `url` - URL to download from
+/// * `cb` - Callback to call with every chunk read. Params are |`delta_bytes`: u64, `current_bytes`: u64, `total_size`: u64|
 ///
 /// # Returns
 /// * total bytes downloaded & written
+///
+/// # Errors
+/// * IO Errors
 pub fn download_with_progress<F>(
     mut output: impl Write,
     url: impl AsRef<str>,
@@ -35,7 +38,7 @@ where
 
     let file_size = res
         .header("Content-Length")
-        .ok_or_else(|| ThermiteError::MiscError("Missing content length header".into()))?
+        .ok_or_else(|| ThermiteError::UnknownError("Missing content length header".into()))?
         .parse::<u64>()?;
     debug!("Downloading file of size: {}", file_size);
 
@@ -61,15 +64,19 @@ where
 
 /// Wrapper for calling `download_with_progress` without a progress bar
 /// # Params
-/// * output - Writer to write the data to
-/// * url - Url to download from
+/// * `output` - Writer to write the data to
+/// * `url` - Url to download from
 ///
 /// # Returns
 /// * total bytes downloaded & written
+///
+/// # Errors
+/// * IO Errors
 pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64, ThermiteError> {
     download_with_progress(output, url, |_, _, _| {})
 }
 
+#[deprecated]
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {
@@ -83,14 +90,21 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
 
 /// Install a mod to a directory
 /// # Params
-/// * zip_file - compressed mod file
-/// * target_dir - directory to install to
-/// * extract_dir - directory to extract to before installing. Defaults to a temp directory in `target_dir`
-/// * sanity_check - function that will be called before performing the installation. The operation will fail with `ThermiteError::SanityError` if this returns `false`
+/// * `zip_file` - compressed mod file
+/// * `target_dir` - directory to install to
+/// * `extract_dir` - directory to extract to before installing. Defaults to a temp directory in `target_dir`
+/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with `ThermiteError::SanityError` if this returns `false`
 ///     - takes `File` of the zip file
 ///     - returns `bool`
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
+///
+/// # Errors
+/// * IO Errors
+/// * Misformatted mods (typically missing the `mods` directory)
+///
+/// # Panics
+/// This function will panic if it is unable to get the current system time
 pub fn install_with_sanity<T, F>(
     author: impl AsRef<str>,
     zip_file: T,
@@ -116,7 +130,7 @@ where
         mods_dir.join(
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .expect("Unable to get system time")
                 .as_secs()
                 .to_string(),
         )
@@ -190,7 +204,7 @@ where
     }
 
     if mods.is_empty() {
-        return Err(ThermiteError::MiscError(
+        return Err(ThermiteError::UnknownError(
             "Couldn't find a mod directory to copy".into(),
         ));
     }
@@ -201,7 +215,7 @@ where
     let mut fin = vec![];
 
     // move the mod files from the temp dir to the real dir
-    for submod in mods.iter_mut() {
+    for submod in &mut mods {
         // the location of the mod within the temp dir
         let temp = temp_dir.join(&submod);
         // the name of the folder the mod lives in
@@ -250,11 +264,15 @@ where
 
 /// Install a mod to a directory
 /// # Params
-/// * author - string that identifies the package author
-/// * zip_file - compressed mod file
-/// * target_dir - directory to install to
+/// * `author` - string that identifies the package author
+/// * `zip_file` - compressed mod file
+/// * `target_dir` - directory to install to
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
+///
+/// # Errors
+/// * IO Errors
+/// * Misformatted mods (typically missing the `mods` directory)
 pub fn install_mod<T>(
     author: impl AsRef<str>,
     zip_file: T,
@@ -269,8 +287,11 @@ where
 /// Install N* to the provided path
 ///
 /// # Params
-/// * zip_file - compressed mod file
-/// * game_path - the path of the Titanfall 2 install
+/// * `zip_file` - compressed mod file
+/// * `game_path` - the path of the Titanfall 2 install
+///
+/// # Errors
+/// * IO Errors
 pub fn install_northstar(
     zip_file: impl Read + Seek + Copy,
     game_path: impl AsRef<Path>,
@@ -282,9 +303,9 @@ pub fn install_northstar(
         .by_name("manifest.json")
         .ok()
         .map(|mut v| {
-            let mut buf = Vec::with_capacity(v.size() as usize);
+            let mut buf = Vec::with_capacity(usize::try_from(v.size())?);
             if let Err(e) = v.read_to_end(&mut buf) {
-                Err(e)
+                Err(ThermiteError::from(e))
             } else {
                 Ok(buf)
             }
@@ -292,10 +313,13 @@ pub fn install_northstar(
         .transpose()?;
 
     for i in 0..archive.len() {
-        let mut f = archive.by_index(i).unwrap();
+        let mut f = archive.by_index(i)?;
 
         //This should work fine for N* because the dir structure *should* always be the same
-        if f.enclosed_name().unwrap().starts_with("Northstar") {
+        if f.enclosed_name()
+            .ok_or_else(|| ThermiteError::UnknownError("File missing enclosed name".into()))?
+            .starts_with("Northstar")
+        {
             let out = target.join(
                 f.enclosed_name()
                     .unwrap()

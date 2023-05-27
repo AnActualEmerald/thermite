@@ -47,6 +47,7 @@ pub struct Mod {
 }
 
 impl Mod {
+    #[must_use]
     pub fn get_latest(&self) -> Option<&ModVersion> {
         self.versions.get(&self.latest)
     }
@@ -69,26 +70,27 @@ pub struct ModVersion {
 }
 
 impl ModVersion {
+    #[must_use]
     pub fn file_size_string(&self) -> String {
         if self.file_size / 1_000_000 >= 1 {
-            let size = self.file_size as f64 / 1_048_576f64;
+            let size = self.file_size / 1_048_576;
 
             format!("{size:.2} MB")
         } else {
-            let size = self.file_size as f64 / 1024f64;
+            let size = self.file_size / 1024;
             format!("{size:.2} KB")
         }
     }
 }
 
-impl From<&ModVersion> for ModVersion {
-    fn from(value: &ModVersion) -> Self {
+impl From<&Self> for ModVersion {
+    fn from(value: &Self) -> Self {
         value.clone()
     }
 }
 
-impl AsRef<ModVersion> for ModVersion {
-    fn as_ref(&self) -> &ModVersion {
+impl AsRef<Self> for ModVersion {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -105,7 +107,7 @@ pub struct Manifest {
 // enabledmods.json
 
 /// Represents an enabledmods.json file
-/// Automatically writes any changes made when dropped (call dont_save to disable)
+/// Automatically writes any changes made when dropped (call `dont_save` to disable)
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnabledMods {
     #[serde(rename = "Northstar.Client")]
@@ -166,7 +168,7 @@ impl Drop for EnabledMods {
                         e
                     );
                 } else {
-                    debug!("Wrote file at {}", self.path.as_ref().unwrap().display())
+                    debug!("Wrote file at {}", self.path.as_ref().unwrap().display());
                 }
             }
         }
@@ -174,7 +176,7 @@ impl Drop for EnabledMods {
 }
 
 impl EnabledMods {
-    /// Returns a default EnabledMods with the path property set
+    /// Returns a default `EnabledMods` with the path property set
     pub fn default_with_path(path: impl Into<PathBuf>) -> Self {
         let mut s = Self::default();
         s.path = Some(path.into());
@@ -193,7 +195,9 @@ impl EnabledMods {
 
     /// Saves the file using the path it was loaded from
     ///
-    /// Returns an error if the path isn't set
+    /// # Errors
+    /// - If the path isn't set
+    /// - If there is an IO error
     pub fn save(&self) -> Result<(), ThermiteError> {
         let parsed = serde_json::to_string_pretty(self)?;
         if let Some(path) = &self.path {
@@ -209,19 +213,24 @@ impl EnabledMods {
     }
 
     /// Saves the file using the provided path
+    ///
+    /// # Errors
+    /// - If there is an IO error
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
         self.path = Some(path.as_ref().to_owned());
         self.save()
     }
 
-    pub fn path(&self) -> Option<&PathBuf> {
+    /// Path the file will be written to
+    #[must_use]
+    pub const fn path(&self) -> Option<&PathBuf> {
         self.path.as_ref()
     }
 
     pub fn set_path(&mut self, path: impl Into<Option<PathBuf>>) {
         self.path = path.into();
     }
-    
+
     /// Returns the current state of a mod
     ///
     /// # Warning
@@ -231,7 +240,7 @@ impl EnabledMods {
     }
 
     /// Get the current state of a mod if it exists
-    pub fn get(&self , name: impl AsRef<str>) -> Option<bool> {
+    pub fn get(&self, name: impl AsRef<str>) -> Option<bool> {
         if CORE_MODS.contains(&name.as_ref()) {
             Some(match name.as_ref() {
                 "Northstar.Client" => self.client,
@@ -239,13 +248,13 @@ impl EnabledMods {
                 "Northstar.CustomServers" => self.servers,
                 _ => unimplemented!(),
             })
-        }else {
+        } else {
             self.mods.get(name.as_ref()).copied()
         }
     }
 
     /// Updates or inserts a mod's state
-    pub fn set(&mut self , name: impl AsRef<str>, val: bool) -> Option<bool> {
+    pub fn set(&mut self, name: impl AsRef<str>, val: bool) -> Option<bool> {
         if CORE_MODS.contains(&name.as_ref().to_lowercase().as_str()) {
             let prev = self.get(&name);
             match name.as_ref().to_lowercase().as_str() {
@@ -255,13 +264,10 @@ impl EnabledMods {
                 _ => unimplemented!(),
             }
             prev
-        }else {
+        } else {
             self.mods.insert(name.as_ref().to_string(), val)
         }
     }
-
-
-    
 }
 
 /// Represents an installed package
