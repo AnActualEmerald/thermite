@@ -30,7 +30,7 @@ pub struct ModJSON {
     pub _extra: HashMap<String, Value>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Mod {
     pub name: String,
     ///The latest version of the mod
@@ -57,7 +57,7 @@ impl Mod {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ModVersion {
     pub name: String,
     pub version: String,
