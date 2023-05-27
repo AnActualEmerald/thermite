@@ -82,3 +82,54 @@ fn map_response(res: &[PackageListing]) -> Vec<Mod> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod test {
+    use std::collections::{BTreeMap, HashMap};
+
+    use crate::model::{Mod, ModVersion};
+
+    use super::{PackageListing, PackageVersion, map_response};
+  
+
+    #[test]
+    fn map_thunderstore_response() {
+        let test_data = [PackageListing {
+            name: "Foo".into(),
+            owner: "Bar".into(),
+            versions: vec![PackageVersion {
+                dependencies: vec!["something".into()],
+                description: "Test".into(),
+                download_url: "localhost".into(),
+                file_size: 420,
+                version_number: "0.1.0".into(),
+                _extra: HashMap::new()
+            }],
+            _extra: HashMap::new(),
+        }];
+
+        let expected = vec![Mod {
+            name: "Foo".into(),
+            author: "Bar".into(),
+            latest: "0.1.0".into(),
+            installed: false,
+            upgradable: false, 
+            global: false,
+            versions: BTreeMap::from([("0.1.0".into(), ModVersion {
+                name: "Foo".into(),
+                version: "0.1.0".into(),
+                url: "localhost".into(),
+                desc: "Test".into(),
+                deps: vec!["something".into()],
+                installed: false,
+                global: false,
+                file_size: 420
+
+            })])
+        }];
+
+        let res = map_response(&test_data);
+        assert!(!res.is_empty());
+        assert_eq!(res[0], expected[0]);
+    }
+}
