@@ -38,7 +38,10 @@ where
 
     let file_size = res
         .header("Content-Length")
-        .ok_or_else(|| ThermiteError::UnknownError("Missing content length header".into()))?
+        .unwrap_or_else(|| {
+            warn!("Response missing 'Content-Length' header");
+            "0"
+        })
         .parse::<u64>()?;
     debug!("Downloading file of size: {}", file_size);
 
@@ -98,8 +101,7 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
 ///     - returns `bool`
 ///
 /// `target_dir` will be treated as the root of the `mods` directory in the mod file
-///
-/// # Errors
+////// # Errors
 /// * IO Errors
 /// * Misformatted mods (typically missing the `mods` directory)
 ///
@@ -397,4 +399,43 @@ pub fn install_northstar(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+
+    use mockall::mock;
+
+    use super::*;
+
+    mock! {
+        Writer {}
+        impl Write for Writer {
+            fn write(&mut self, but: &[u8]) -> io::Result<usize>;
+            fn write_all(&mut self, buf: &[u8]) -> io::Result<()>;
+            fn flush(&mut self) -> io::Result<()>;
+        }
+
+    }
+
+    const TEST_URL: &str =
+        "https://freetestdata.com/wp-content/uploads/2023/04/2.4KB_JSON-File_FreeTestData.json";
+    const TEST_SIZE_BYTES: u64 = 2455;
+
+    #[test]
+    fn download_file() {
+        let mut mock_writer = MockWriter::new();
+        mock_writer
+            .expect_write_all()
+            .returning(|_| Ok(()))
+            .times((TEST_SIZE_BYTES as usize / super::CHUNK_SIZE)..);
+
+        let res = download_with_progress(mock_writer, TEST_URL, |_, _, _| {});
+        assert!(res.is_ok());
+        res.map(|size| {
+            assert_eq!(size, TEST_SIZE_BYTES);
+            size
+        })
+        .unwrap();
+    }
 }
