@@ -1,4 +1,4 @@
 target/
 mods/
-*.zip
+./*.zip
 *.lock

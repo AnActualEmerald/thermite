@@ -405,22 +405,36 @@ pub fn install_northstar(
 mod test {
 
     use mockall::mock;
+    use std::io::Cursor;
 
-    use super::*;
+    use super::{install_mod, *};
 
     mock! {
         Writer {}
         impl Write for Writer {
-            fn write(&mut self, but: &[u8]) -> io::Result<usize>;
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize>;
             fn write_all(&mut self, buf: &[u8]) -> io::Result<()>;
             fn flush(&mut self) -> io::Result<()>;
         }
 
     }
 
+    mock! {
+        Archive {}
+        impl Read for Archive {
+            fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>;
+        }
+
+        impl Seek for Archive {
+            fn seek(&mut self, pos: std::io::SeekFrom) -> io::Result<u64>;
+        }
+    }
+
     const TEST_URL: &str =
         "https://freetestdata.com/wp-content/uploads/2023/04/2.4KB_JSON-File_FreeTestData.json";
     const TEST_SIZE_BYTES: u64 = 2455;
+
+    const TEST_ARCHIVE: &[u8] = include_bytes!("test_archive.zip");
 
     #[test]
     fn download_file() {
@@ -430,12 +444,55 @@ mod test {
             .returning(|_| Ok(()))
             .times((TEST_SIZE_BYTES as usize / super::CHUNK_SIZE)..);
 
-        let res = download_with_progress(mock_writer, TEST_URL, |_, _, _| {});
+        let res = download(mock_writer, TEST_URL);
         assert!(res.is_ok());
         res.map(|size| {
             assert_eq!(size, TEST_SIZE_BYTES);
             size
         })
         .unwrap();
+    }
+
+    #[test]
+    fn fail_insanity() {
+        let archive = MockArchive::new();
+        let res = install_with_sanity("test", archive, ".", None, |_| return false);
+
+        assert!(res.is_err());
+        match res {
+            Err(ThermiteError::SanityError) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn install() {
+        let mut cursor = Cursor::new(TEST_ARCHIVE);
+        let target_dir = TempDir::create("./test_dir").expect("Unabel to create temp dir");
+        let res = install_mod("test", &mut cursor, &target_dir);
+
+        assert!(res.is_ok());
+        let res = res.unwrap();
+        assert!(!res.is_empty());
+        assert_eq!(target_dir.join("Smart CAR").canonicalize().unwrap(), res[0]);
+
+        let path = &res[0];
+
+        assert!(path.try_exists().unwrap());
+        assert!(
+            path.join("mod.json").try_exists().unwrap(),
+            "mod.json should exist"
+        );
+        assert!(
+            path.join("manifest.json").try_exists().unwrap(),
+            "manifest.json should exist"
+        );
+        assert!(
+            path.join("thunderstore_author.txt").try_exists().unwrap(),
+            "thunderstore_author.txt should exist"
+        );
+        let author = fs::read_to_string(path.join("thunderstore_author.txt")).unwrap();
+
+        assert_eq!("test", author);
     }
 }
