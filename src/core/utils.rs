@@ -223,3 +223,76 @@ pub(crate) mod proton {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{collections::BTreeMap, path::PathBuf};
+
+    use crate::model::Mod;
+
+    use super::{resolve_deps, TempDir};
+
+    const TEST_FOLDER: &str = "./test";
+
+    #[test]
+    fn temp_dir_deletes_on_drop() {
+        {
+            let temp_dir = TempDir::create(TEST_FOLDER);
+            assert!(temp_dir.is_ok());
+
+            if let Ok(dir) = temp_dir {
+                let Ok(exists) = dir.try_exists() else { panic!("Unable to check if temp dir exists") };
+                assert!(exists);
+            }
+        }
+
+        let path = PathBuf::from(TEST_FOLDER);
+        let Ok(exists) = path.try_exists() else { panic!("Unable to check if temp dir exists") };
+        assert!(!exists);
+    }
+
+    #[test]
+    fn reolve_dependencies() {
+        let test_index: &[Mod] = &[Mod {
+            name: "test".into(),
+            latest: "0.1.0".into(),
+            upgradable: false,
+            global: false,
+            installed: false,
+            versions: BTreeMap::new(),
+            author: "Foo".into(),
+        }];
+
+        let test_deps = &["foo-test-0.1.0"];
+
+        let res = resolve_deps(test_deps, test_index);
+
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap()[0], test_index[0]);
+    }
+
+    #[test]
+    fn fail_resolve_bad_deps() {
+        let test_index: &[Mod] = &[Mod {
+            name: "test".into(),
+            latest: "0.1.0".into(),
+            upgradable: false,
+            global: false,
+            installed: false,
+            versions: BTreeMap::new(),
+            author: "Foo".into(),
+        }];
+
+        let test_deps = &["foo-test@0.1.0"];
+
+        let res = resolve_deps(test_deps, test_index);
+
+        assert!(res.is_err());
+
+        let test_deps = &["foo-bar-0.1.0"];
+
+        let res = resolve_deps(test_deps, test_index);
+
+        assert!(res.is_err());
+    }
+}
