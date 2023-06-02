@@ -161,7 +161,7 @@ impl Drop for EnabledMods {
                 hasher.finish()
             };
 
-            if hash != self.hash {
+            if self.do_save && hash != self.hash {
                 if let Err(e) = self.save() {
                     error!(
                         "Encountered error while saving enabled_mods.json to {}:\n {}",
