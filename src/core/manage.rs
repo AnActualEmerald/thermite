@@ -79,7 +79,7 @@ pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64, Thermit
     download_with_progress(output, url, |_, _, _| {})
 }
 
-#[deprecated]
+
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {

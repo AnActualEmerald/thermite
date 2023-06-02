@@ -14,9 +14,6 @@
 //! }
 //! ```
 
-#[cfg(test)]
-mod test;
-
 pub mod api;
 pub mod core;
 pub mod error;
@@ -33,8 +30,11 @@ pub mod prelude {
     pub use crate::api::get_package_index;
     pub use crate::core::manage::{
         download, download_with_progress, install_mod, install_northstar, install_with_sanity,
-        uninstall,
+        
     };
+
+    #[deprecated]
+    pub use crate::core::manage::uninstall;
     pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
     #[cfg(all(target_os = "linux", feature = "proton"))]
     pub use crate::core::{download_ns_proton, install_ns_proton, latest_release};

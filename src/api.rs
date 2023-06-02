@@ -89,9 +89,25 @@ mod test {
 
     use crate::model::{Mod, ModVersion};
 
-    use super::{PackageListing, PackageVersion, map_response};
-  
+    use super::{PackageListing, PackageVersion, map_response, get_package_index};
 
+    #[test]
+    fn get_packages_from_tstore() {
+        let index = get_package_index();
+        assert!(index.is_ok());
+        let index = index.unwrap();
+        assert!(!index.is_empty());
+        let mut deps = 0;
+        for f in index {
+            for d in f.versions.get(&f.latest).unwrap().deps.iter() {
+                assert_ne!(d, "northstar-Northstar");
+                deps += 1;
+            }
+        }
+    
+        assert_ne!(0, deps);
+    }
+    
     #[test]
     fn map_thunderstore_response() {
         let test_data = [PackageListing {

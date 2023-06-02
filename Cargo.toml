@@ -5,7 +5,7 @@ edition = "2021"
 description = "Crate for managing Northstar mods"
 license = "MIT"
 repository = "https://forge.greenboi.me/Emerald/thermite"
-exclude = ["commands/"]
+exclude = ["commands/", "*.zip"]
 
 [workspace]
 members = ["xtask"]
