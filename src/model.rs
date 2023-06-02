@@ -12,13 +12,13 @@ use tracing::{debug, error};
 
 use crate::{error::ThermiteError, CORE_MODS};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "PascalCase")]
 pub struct ModJSON {
     pub name: String,
     pub description: String,
     pub version: String,
-    pub load_priotity: Option<i32>,
+    pub load_priority: Option<i32>,
     pub required_on_client: Option<bool>,
     #[serde(default)]
     pub con_vars: Vec<Value>,
@@ -52,6 +52,7 @@ impl Mod {
         self.versions.get(&self.latest)
     }
 
+    #[must_use]
     pub fn get_version(&self, version: impl AsRef<str>) -> Option<&ModVersion> {
         self.versions.get(version.as_ref())
     }
@@ -95,7 +96,7 @@ impl AsRef<Self> for ModVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Manifest {
     pub name: String,
     pub version_number: String,
@@ -176,10 +177,22 @@ impl Drop for EnabledMods {
 }
 
 impl EnabledMods {
+    /// Attempts to read an `EnabledMods` from the path
+    /// 
+    /// # Errors
+    /// - The file doesn't exist
+    /// - The file isn't formatted properly
+    pub fn load(path: impl AsRef<Path>) -> Result<Self, ThermiteError> {
+        let raw = fs::read_to_string(path)?;
+
+        json5::from_str(&raw).map_err(|e| e.into())
+
+    }
+
     /// Returns a default `EnabledMods` with the path property set
-    pub fn default_with_path(path: impl Into<PathBuf>) -> Self {
+    pub fn default_with_path(path: impl AsRef<Path>) -> Self {
         let mut s = Self::default();
-        s.path = Some(path.into());
+        s.path = Some(path.as_ref().to_path_buf());
         s
     }
 
@@ -277,4 +290,146 @@ pub struct InstalledMod {
     pub mod_json: ModJSON,
     pub author: String,
     pub path: PathBuf,
+
+
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use crate::core::utils::TempDir;
+
+    use super::{ModJSON, Manifest, EnabledMods};
+
+    const TEST_MOD_JSON: &str = r#"{
+        "Name": "Test",
+        "Description": "Test",
+        "Version": "0.1.0",
+        "LoadPriority": 1,
+        "RequiredOnClient": false,
+        "ConVars": [],
+        "Scripts": [],
+        "Localisation": []
+    }"#;
+
+    #[test]
+    fn serialize_mod_json() {
+        let test_data = ModJSON {
+            name: "Test".into(),
+            description: "Test".into(),
+            version: "0.1.0".into(),
+            load_priority: 1.into(),
+            required_on_client: false.into(),
+            con_vars: vec![],
+            scripts: vec![],
+            localisation: vec![],
+            _extra: HashMap::new()
+        };
+
+        let ser = json5::to_string(&test_data);
+
+        assert!(ser.is_ok());
+    }
+
+    #[test]
+    fn deserialize_mod_json() {
+        let test_data = ModJSON {
+            name: "Test".into(),
+            description: "Test".into(),
+            version: "0.1.0".into(),
+            load_priority: 1.into(),
+            required_on_client: false.into(),
+            con_vars: vec![],
+            scripts: vec![],
+            localisation: vec![],
+            _extra: HashMap::new()
+        };
+
+        let de = json5::from_str::<ModJSON>(TEST_MOD_JSON);
+
+        assert!(de.is_ok());
+        assert_eq!(test_data, de.unwrap());
+
+    }
+    
+    const TEST_MANIFEST: &str =  r#"{
+        "name": "Test",
+        "version_number": "0.1.0",
+        "website_url": "https://example.com",
+        "description": "Test",
+        "dependencies": []
+    }"#;
+
+    #[test]
+    fn deserialize_manifest() {
+        let expected = Manifest {
+            name: "Test".into(),
+            version_number: "0.1.0".into(),
+            website_url: "https://example.com".into(),
+            description: "Test".into(),
+            dependencies: vec![]
+        };
+
+        let de = json5::from_str(TEST_MANIFEST);
+
+        assert!(de.is_ok());
+        assert_eq!(expected, de.unwrap());
+    }
+
+    #[test]
+    fn save_enabled_mods_on_drop() {
+        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
+        let path = dir.join("enabled_mods.json");
+        {
+            let mut mods = EnabledMods::default_with_path(&path);
+            mods.set("TestMod", false);
+        }
+
+        let mods = EnabledMods::load(&path);
+
+        assert!(mods.is_ok());
+
+        let test_mod = mods.unwrap().get("TestMod");
+        assert!(test_mod.is_some());
+        // this value should be false, so we assert the inverse
+        assert!(!test_mod.unwrap());
+    }
+
+    #[test]
+    fn disable_enabled_mods_autosave() {
+        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
+        let path = dir.join("enabled_mods.json");
+        {
+            let mut mods = EnabledMods::default_with_path(&path);
+            mods.set("TestMod", false);
+            mods.dont_save();
+        }
+
+        let mods = EnabledMods::load(&path);
+
+        assert!(mods.is_err());
+    }
+
+    #[test]
+    fn enabled_mods_manual_save() {
+        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
+        let path = dir.join("enabled_mods.json");
+        {
+            let mut mods = EnabledMods::default();
+            mods.set("TestMod", false);
+            mods.dont_save();
+            mods.save_with_path(&path).expect("Unable to save enabled mods");
+        }
+
+        let mods = EnabledMods::load(&path);
+
+        assert!(mods.is_ok());
+        
+        let test_mod = mods.unwrap().get("TestMod");
+        
+        assert!(test_mod.is_some());
+        assert!(!test_mod.unwrap());
+
+    }
 }
