@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.5] - 2023-07-07
+
+### Bug Fixes
+
+- Do not attempt fix mod with wrong folder name (#6)
+- Make dynamic JsonError variant Send + Sync + 'static
+
 ## [0.6.4] - 2023-06-02
 
 ### Bug Fixes
