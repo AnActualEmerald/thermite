@@ -1,7 +1,8 @@
 use std::{
+    error::Error,
     io,
     num::{ParseIntError, TryFromIntError},
-    path::{PathBuf, StripPrefixError}, error::Error,
+    path::{PathBuf, StripPrefixError},
 };
 
 use thiserror::Error;
@@ -21,7 +22,7 @@ pub enum ThermiteError {
     #[error(transparent)]
     ZipError(#[from] zip::result::ZipError),
     #[error("Error parsing JSON: {0}")]
-    JsonError(Box<dyn Error>),
+    JsonError(Box<dyn Error + Send + Sync + 'static>),
     #[error("Error resolving dependency {0}")]
     DepError(String),
     #[error("Error stripping directory prefix {0}\nIs the mod formatted correctly?")]
