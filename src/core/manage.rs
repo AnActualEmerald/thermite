@@ -192,14 +192,6 @@ where
                         debug!("Add submod {}", name);
                         mods.push(Path::new("mods").join(name));
                     }
-                } else {
-                    // sometimes people don't use the `mods` folder if they only have one mod
-                    // this is technically incorrect but we should handle it anyways
-                    debug!(
-                        "Add one submod {}",
-                        e.path().file_name().unwrap().to_string_lossy()
-                    );
-                    mods.push(PathBuf::new());
                 }
             }
         }
