@@ -52,6 +52,6 @@ jobs:
           command: xtask
           args: coverage
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v3.1.4
         with:
           files: coverage/*.lcov
