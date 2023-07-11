@@ -2,11 +2,13 @@ use std::{
     ffi::OsString,
     fs::{self, OpenOptions},
     io::{self, Read, Seek, Write},
-    path::{Path, PathBuf},
-    time::SystemTime,
+    path::Path,
 };
 
-use crate::{core::utils::TempDir, error::ThermiteError};
+#[cfg(not(feature = "packages"))]
+use std::path::PathBuf;
+
+use crate::error::{Result, ThermiteError};
 
 use zip::ZipArchive;
 
@@ -25,11 +27,7 @@ const CHUNK_SIZE: usize = 1024;
 ///
 /// # Errors
 /// * IO Errors
-pub fn download_with_progress<F>(
-    mut output: impl Write,
-    url: impl AsRef<str>,
-    cb: F,
-) -> Result<u64, ThermiteError>
+pub fn download_with_progress<F>(mut output: impl Write, url: impl AsRef<str>, cb: F) -> Result<u64>
 where
     F: Fn(u64, u64, u64),
 {
@@ -75,12 +73,11 @@ where
 ///
 /// # Errors
 /// * IO Errors
-pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64, ThermiteError> {
+pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64> {
     download_with_progress(output, url, |_, _, _| {})
 }
 
-
-pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
+pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {
             //try removing a file too, just in case
@@ -107,23 +104,28 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<(), ThermiteError> {
 ///
 /// # Panics
 /// This function will panic if it is unable to get the current system time
+#[cfg(not(feature = "packages"))]
 pub fn install_with_sanity<T, F>(
     author: impl AsRef<str>,
     zip_file: T,
     target_dir: impl AsRef<Path>,
     extract_dir: Option<&Path>,
     sanity_check: F,
-) -> Result<Vec<PathBuf>, ThermiteError>
+) -> Result<Vec<PathBuf>>
 where
     T: Read + Seek,
     F: FnOnce(&T) -> bool,
 {
+    use crate::core::utils::TempDir;
+    use std::time::SystemTime;
+
     let target_dir = target_dir.as_ref();
     if !sanity_check(&zip_file) {
         return Err(ThermiteError::SanityError);
     }
     debug!("Starting mod insall");
     let mods_dir = target_dir.canonicalize()?;
+
     //Extract mod to a temp directory so that we can easily see any sub-mods
     //This wouldn't be needed if the ZipArchive recreated directories, but oh well
     let temp_dir = if let Some(p) = extract_dir {
@@ -256,6 +258,25 @@ where
     Ok(fin)
 }
 
+#[cfg(feature = "packages")]
+pub fn install_with_sanity<T, F>(
+    zip_file: T,
+    target_dir: impl AsRef<Path>,
+    sanity_check: F,
+) -> Result<()>
+where
+    T: Read + Seek,
+    F: FnOnce(&T) -> bool,
+{
+    if !sanity_check(&zip_file) {
+        return Err(ThermiteError::SanityError);
+    }
+
+    ZipArchive::new(zip_file)?.extract(target_dir)?;
+
+    Ok(())
+}
+
 /// Install a mod to a directory
 /// # Params
 /// * `author` - string that identifies the package author
@@ -267,15 +288,24 @@ where
 /// # Errors
 /// * IO Errors
 /// * Misformatted mods (typically missing the `mods` directory)
+#[cfg(not(feature = "packages"))]
 pub fn install_mod<T>(
     author: impl AsRef<str>,
     zip_file: T,
     target_dir: impl AsRef<Path>,
-) -> Result<Vec<PathBuf>, ThermiteError>
+) -> Result<Vec<PathBuf>>
 where
     T: Read + Seek,
 {
     install_with_sanity(author, zip_file, target_dir, None, |_| true)
+}
+
+#[cfg(feature = "packages")]
+pub fn install_mod<T>(zip_file: T, target_dir: impl AsRef<Path>) -> Result<()>
+where
+    T: Read + Seek,
+{
+    install_with_sanity(zip_file, target_dir, |_| true)
 }
 
 /// Install N* to the provided path
@@ -289,7 +319,7 @@ where
 pub fn install_northstar(
     zip_file: impl Read + Seek + Copy,
     game_path: impl AsRef<Path>,
-) -> Result<(), ThermiteError> {
+) -> Result<()> {
     let target = game_path.as_ref();
     let mut archive = ZipArchive::new(zip_file)?;
 
@@ -396,6 +426,7 @@ pub fn install_northstar(
 #[cfg(test)]
 mod test {
 
+    use crate::core::utils::TempDir;
     use mockall::mock;
     use std::io::Cursor;
 
