@@ -33,6 +33,7 @@ zip = "0.6.3"
 default = []
 steam = ["steamlocate"]
 proton = ["tar", "flate2"]
+packages = []
 
 [dev-dependencies]
 indicatif = "0.17.3"
