@@ -17,6 +17,10 @@ name = "thermite"
 name = "steam"
 required-features = ["steam"]
 
+[[example]]
+name = "packages"
+required-features = ["packages"]
+
 [dependencies]
 flate2 = { version = "1.0.25", optional = true }
 json5 = "0.4.1"

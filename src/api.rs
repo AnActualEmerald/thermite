@@ -24,6 +24,7 @@ struct PackageVersion {
     download_url: String,
     file_size: u64,
     version_number: String,
+    full_name: String,
 
     #[serde(flatten)]
     _extra: HashMap<String, Value>,
@@ -54,6 +55,7 @@ fn map_response(res: &[PackageListing]) -> Vec<Mod> {
                     v.version_number.clone(),
                     ModVersion {
                         name: e.name.clone(),
+                        full_name: v.full_name.clone(),
                         version: v.version_number.clone(),
                         desc: v.description.clone(),
                         file_size: v.file_size,
@@ -89,7 +91,7 @@ mod test {
 
     use crate::model::{Mod, ModVersion};
 
-    use super::{PackageListing, PackageVersion, map_response, get_package_index};
+    use super::{get_package_index, map_response, PackageListing, PackageVersion};
 
     #[test]
     fn get_packages_from_tstore() {
@@ -104,10 +106,10 @@ mod test {
                 deps += 1;
             }
         }
-    
+
         assert_ne!(0, deps);
     }
-    
+
     #[test]
     fn map_thunderstore_response() {
         let test_data = [PackageListing {
@@ -119,7 +121,8 @@ mod test {
                 download_url: "localhost".into(),
                 file_size: 420,
                 version_number: "0.1.0".into(),
-                _extra: HashMap::new()
+                full_name: "Bar-Foo-0.1.0".into(),
+                _extra: HashMap::new(),
             }],
             _extra: HashMap::new(),
         }];
@@ -129,19 +132,22 @@ mod test {
             author: "Bar".into(),
             latest: "0.1.0".into(),
             installed: false,
-            upgradable: false, 
+            upgradable: false,
             global: false,
-            versions: BTreeMap::from([("0.1.0".into(), ModVersion {
-                name: "Foo".into(),
-                version: "0.1.0".into(),
-                url: "localhost".into(),
-                desc: "Test".into(),
-                deps: vec!["something".into()],
-                installed: false,
-                global: false,
-                file_size: 420
-
-            })])
+            versions: BTreeMap::from([(
+                "0.1.0".into(),
+                ModVersion {
+                    name: "Foo".into(),
+                    full_name: "Bar-Foo-0.1.0".into(),
+                    version: "0.1.0".into(),
+                    url: "localhost".into(),
+                    desc: "Test".into(),
+                    deps: vec!["something".into()],
+                    installed: false,
+                    global: false,
+                    file_size: 420,
+                },
+            )]),
         }];
 
         let res = map_response(&test_data);
