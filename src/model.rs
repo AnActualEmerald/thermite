@@ -61,6 +61,7 @@ impl Mod {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ModVersion {
     pub name: String,
+    pub full_name: String,
     pub version: String,
     pub url: String,
     pub desc: String,
@@ -178,7 +179,7 @@ impl Drop for EnabledMods {
 
 impl EnabledMods {
     /// Attempts to read an `EnabledMods` from the path
-    /// 
+    ///
     /// # Errors
     /// - The file doesn't exist
     /// - The file isn't formatted properly
@@ -186,7 +187,6 @@ impl EnabledMods {
         let raw = fs::read_to_string(path)?;
 
         json5::from_str(&raw).map_err(|e| e.into())
-
     }
 
     /// Returns a default `EnabledMods` with the path property set
@@ -290,8 +290,6 @@ pub struct InstalledMod {
     pub mod_json: ModJSON,
     pub author: String,
     pub path: PathBuf,
-
-
 }
 
 #[cfg(test)]
@@ -300,7 +298,7 @@ mod test {
 
     use crate::core::utils::TempDir;
 
-    use super::{ModJSON, Manifest, EnabledMods};
+    use super::{EnabledMods, Manifest, ModJSON};
 
     const TEST_MOD_JSON: &str = r#"{
         "Name": "Test",
@@ -324,7 +322,7 @@ mod test {
             con_vars: vec![],
             scripts: vec![],
             localisation: vec![],
-            _extra: HashMap::new()
+            _extra: HashMap::new(),
         };
 
         let ser = json5::to_string(&test_data);
@@ -343,17 +341,16 @@ mod test {
             con_vars: vec![],
             scripts: vec![],
             localisation: vec![],
-            _extra: HashMap::new()
+            _extra: HashMap::new(),
         };
 
         let de = json5::from_str::<ModJSON>(TEST_MOD_JSON);
 
         assert!(de.is_ok());
         assert_eq!(test_data, de.unwrap());
-
     }
-    
-    const TEST_MANIFEST: &str =  r#"{
+
+    const TEST_MANIFEST: &str = r#"{
         "name": "Test",
         "version_number": "0.1.0",
         "website_url": "https://example.com",
@@ -368,7 +365,7 @@ mod test {
             version_number: "0.1.0".into(),
             website_url: "https://example.com".into(),
             description: "Test".into(),
-            dependencies: vec![]
+            dependencies: vec![],
         };
 
         let de = json5::from_str(TEST_MANIFEST);
@@ -419,17 +416,17 @@ mod test {
             let mut mods = EnabledMods::default();
             mods.set("TestMod", false);
             mods.dont_save();
-            mods.save_with_path(&path).expect("Unable to save enabled mods");
+            mods.save_with_path(&path)
+                .expect("Unable to save enabled mods");
         }
 
         let mods = EnabledMods::load(&path);
 
         assert!(mods.is_ok());
-        
+
         let test_mod = mods.unwrap().get("TestMod");
-        
+
         assert!(test_mod.is_some());
         assert!(!test_mod.unwrap());
-
     }
 }
