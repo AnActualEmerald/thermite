@@ -376,7 +376,8 @@ mod test {
 
     #[test]
     fn save_enabled_mods_on_drop() {
-        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
+        let dir =
+            TempDir::create("./test_autosave_enabled_mods").expect("Unable to create temp dir");
         let path = dir.join("enabled_mods.json");
         {
             let mut mods = EnabledMods::default_with_path(&path);
@@ -385,7 +386,9 @@ mod test {
 
         let mods = EnabledMods::load(&path);
 
-        assert!(mods.is_ok());
+        if let Err(e) = mods {
+            panic!("Failed to load enabled_mods: {e}");
+        }
 
         let test_mod = mods.unwrap().get("TestMod");
         assert!(test_mod.is_some());
@@ -395,7 +398,8 @@ mod test {
 
     #[test]
     fn disable_enabled_mods_autosave() {
-        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
+        let dir = TempDir::create("./test_disable_autosave_enabled_mods")
+            .expect("Unable to create temp dir");
         let path = dir.join("enabled_mods.json");
         {
             let mut mods = EnabledMods::default_with_path(&path);
@@ -422,7 +426,9 @@ mod test {
 
         let mods = EnabledMods::load(&path);
 
-        assert!(mods.is_ok());
+        if let Err(e) = mods {
+            panic!("Failed to load enabled mods: {e}");
+        }
 
         let test_mod = mods.unwrap().get("TestMod");
 
