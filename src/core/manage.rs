@@ -104,161 +104,6 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 ///
 /// # Panics
 /// This function will panic if it is unable to get the current system time
-#[cfg(not(feature = "packages"))]
-pub fn install_with_sanity<T, F>(
-    author: impl AsRef<str>,
-    zip_file: T,
-    target_dir: impl AsRef<Path>,
-    extract_dir: Option<&Path>,
-    sanity_check: F,
-) -> Result<Vec<PathBuf>>
-where
-    T: Read + Seek,
-    F: FnOnce(&T) -> bool,
-{
-    use crate::core::utils::TempDir;
-    use std::time::SystemTime;
-
-    let target_dir = target_dir.as_ref();
-    if !sanity_check(&zip_file) {
-        return Err(ThermiteError::SanityError);
-    }
-    debug!("Starting mod insall");
-    let mods_dir = target_dir.canonicalize()?;
-
-    //Extract mod to a temp directory so that we can easily see any sub-mods
-    //This wouldn't be needed if the ZipArchive recreated directories, but oh well
-    let temp_dir = if let Some(p) = extract_dir {
-        p.to_path_buf()
-    } else {
-        mods_dir.join(
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .expect("Unable to get system time")
-                .as_secs()
-                .to_string(),
-        )
-    };
-
-    // TempDir ensures the directory is removed when it goes out of scope
-    let temp_dir = TempDir::create(temp_dir)?;
-    {
-        let mut archive = ZipArchive::new(zip_file)?;
-
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i).unwrap();
-            if file.enclosed_name().is_none() {
-                trace!("Skip missing enclosed name '{}'", file.name());
-                continue;
-            }
-            let out = temp_dir.join(file.enclosed_name().unwrap());
-
-            if file.enclosed_name().unwrap().starts_with(".") {
-                debug!("Skipping hidden file {}", out.display());
-                continue;
-            }
-
-            debug!("Extracting file to {}", out.display());
-            if (*file.name()).ends_with('/') {
-                trace!("Creating dir path in temp dir");
-                fs::create_dir_all(&out)?;
-                continue;
-            } else if let Some(p) = out.parent() {
-                trace!("Creating dir at {}", p.display());
-                fs::create_dir_all(p)?;
-            }
-            trace!("Open file {} for writing", out.display());
-            let mut outfile = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(&out)?;
-            io::copy(&mut file, &mut outfile)?;
-        }
-    }
-    let mut mods = vec![];
-    // find all the submods that need to be installed
-    if let Ok(entries) = temp_dir.read_dir() {
-        for e in entries {
-            let e = e.unwrap();
-
-            // there should only be one directory in the root of a package, but this loop should work regardless
-            trace!("Checking if '{}' is a directory", e.path().display());
-            if e.path().is_dir() {
-                trace!("It is");
-                if e.path().ends_with("mods") {
-                    let mut dirs = e.path().read_dir().unwrap();
-                    while let Some(Ok(e)) = dirs.next() {
-                        let name = e.file_name();
-                        let name = name.to_str().unwrap();
-                        debug!("Add submod {}", name);
-                        mods.push(Path::new("mods").join(name));
-                    }
-                }
-            }
-        }
-    }
-
-    if mods.is_empty() {
-        return Err(ThermiteError::UnknownError(
-            "Couldn't find a mod directory to copy".into(),
-        ));
-    }
-
-    let manifest = temp_dir.join("manifest.json");
-    let author = author.as_ref();
-
-    let mut fin = vec![];
-
-    // move the mod files from the temp dir to the real dir
-    for submod in &mut mods {
-        // the location of the mod within the temp dir
-        let temp = temp_dir.join(&submod);
-        // the name of the folder the mod lives in
-        let p = match submod.strip_prefix("mods") {
-            Ok(p) => p,
-            Err(e) => {
-                warn!(
-                    "Error striping directory prefix (this usually is caused by a misformated mod)"
-                );
-                debug!("{e}");
-                // this behavior should maybe be configurable somehow
-                // TODO: use lazystatic config value here?
-                return Err(e.into());
-            }
-        };
-        // the location of the mod within the target install dir
-        let perm = mods_dir.join(p);
-
-        let author_file = perm.join("thunderstore_author.txt");
-        let manifest_file = perm.join("manifest.json");
-        trace!(
-            "Temp path: {} | Perm path: {}",
-            temp.display(),
-            perm.display()
-        );
-
-        // remove any existing files
-        if perm.try_exists()? {
-            fs::remove_dir_all(&perm)?;
-        }
-        fs::rename(&temp, &perm)?;
-
-        // check if the manifest exists first, it may not if the mod didn't come from thunderstore
-        if manifest.try_exists()? {
-            fs::copy(&manifest, manifest_file)?;
-        }
-
-        // add 'thunderstore_author.txt' using the provided author name
-        fs::write(author_file, author)?;
-
-        fin.push(perm);
-    }
-
-    Ok(fin)
-}
-
-#[cfg(feature = "packages")]
 pub fn install_with_sanity<T, F>(
     zip_file: T,
     target_dir: impl AsRef<Path>,
@@ -277,30 +122,6 @@ where
     Ok(())
 }
 
-/// Install a mod to a directory
-/// # Params
-/// * `author` - string that identifies the package author
-/// * `zip_file` - compressed mod file
-/// * `target_dir` - directory to install to
-///
-/// `target_dir` will be treated as the root of the `mods` directory in the mod file
-///
-/// # Errors
-/// * IO Errors
-/// * Misformatted mods (typically missing the `mods` directory)
-#[cfg(not(feature = "packages"))]
-pub fn install_mod<T>(
-    author: impl AsRef<str>,
-    zip_file: T,
-    target_dir: impl AsRef<Path>,
-) -> Result<Vec<PathBuf>>
-where
-    T: Read + Seek,
-{
-    install_with_sanity(author, zip_file, target_dir, None, |_| true)
-}
-
-#[cfg(feature = "packages")]
 pub fn install_mod<T>(zip_file: T, target_dir: impl AsRef<Path>) -> Result<()>
 where
     T: Read + Seek,
@@ -479,7 +300,7 @@ mod test {
     #[test]
     fn fail_insanity() {
         let archive = MockArchive::new();
-        let res = install_with_sanity("test", archive, ".", None, |_| return false);
+        let res = install_with_sanity(archive, ".", |_| return false);
 
         assert!(res.is_err());
         match res {
@@ -491,31 +312,22 @@ mod test {
     #[test]
     fn install() {
         let mut cursor = Cursor::new(TEST_ARCHIVE);
-        let target_dir = TempDir::create("./test_dir").expect("Unabel to create temp dir");
-        let res = install_mod("test", &mut cursor, &target_dir);
+        let path = TempDir::create("./test_dir").expect("Unable to create temp dir");
+        let res = install_mod(&mut cursor, &path);
 
         assert!(res.is_ok());
-        let res = res.unwrap();
-        assert!(!res.is_empty());
-        assert_eq!(target_dir.join("Smart CAR").canonicalize().unwrap(), res[0]);
 
-        let path = &res[0];
-
-        assert!(path.try_exists().unwrap());
         assert!(
-            path.join("mod.json").try_exists().unwrap(),
+            path.join("mods")
+                .join("Smart CAR")
+                .join("mod.json")
+                .try_exists()
+                .unwrap(),
             "mod.json should exist"
         );
         assert!(
             path.join("manifest.json").try_exists().unwrap(),
             "manifest.json should exist"
         );
-        assert!(
-            path.join("thunderstore_author.txt").try_exists().unwrap(),
-            "thunderstore_author.txt should exist"
-        );
-        let author = fs::read_to_string(path.join("thunderstore_author.txt")).unwrap();
-
-        assert_eq!("test", author);
     }
 }

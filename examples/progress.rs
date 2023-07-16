@@ -38,8 +38,8 @@ fn main() {
     pb.finish_with_message("Done!");
 
     //install_mod will panic if the directory doesn't exist
-    if !Path::new("mods").try_exists().unwrap() {
-        fs::create_dir("mods").unwrap();
+    if !Path::new("packages").try_exists().unwrap() {
+        fs::create_dir("packages").unwrap();
     }
-    install_mod("Fifty", Cursor::new(buffer), "mods").unwrap();
+    install_mod(Cursor::new(buffer), "packages").unwrap();
 }

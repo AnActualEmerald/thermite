@@ -1,4 +1,4 @@
-use std::{fs, io::Cursor, path::Path};
+use std::{io::Cursor, path::Path};
 
 use thermite::prelude::*;
 
@@ -14,9 +14,7 @@ fn main() {
     let mut buffer = vec![];
     download(&mut buffer, &utils.get_latest().unwrap().url).unwrap();
 
-    //install_mod will panic if the directory doesn't exist
-    if !Path::new("mods").try_exists().unwrap() {
-        fs::create_dir("mods").unwrap();
-    }
-    install_mod("Fifty", Cursor::new(buffer), "mods").unwrap();
+    let target_dir = Path::new("packages").join(&utils.get_latest().unwrap().full_name);
+
+    install_mod(Cursor::new(buffer), target_dir).unwrap();
 }

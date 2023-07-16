@@ -9,7 +9,7 @@
 //!         let latest = md.get_latest().unwrap();
 //!         let mut zipped = vec![];
 //!         download(&mut zipped, &latest.url).unwrap();
-//!         install_mod(&md.author, Cursor::new(zipped), "mods").unwrap();
+//!         install_mod(Cursor::new(zipped), "mods").unwrap();
 //!     }    
 //! }
 //! ```
@@ -30,7 +30,6 @@ pub mod prelude {
     pub use crate::api::get_package_index;
     pub use crate::core::manage::{
         download, download_with_progress, install_mod, install_northstar, install_with_sanity,
-        
     };
 
     #[deprecated]

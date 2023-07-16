@@ -17,10 +17,6 @@ name = "thermite"
 name = "steam"
 required-features = ["steam"]
 
-[[example]]
-name = "packages"
-required-features = ["packages"]
-
 [dependencies]
 flate2 = { version = "1.0.25", optional = true }
 json5 = "0.4.1"
@@ -38,7 +34,6 @@ zip = "0.6.3"
 default = []
 steam = ["steamlocate"]
 proton = ["tar", "flate2"]
-packages = []
 
 [dev-dependencies]
 indicatif = "0.17.3"
