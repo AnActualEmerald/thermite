@@ -1,13 +1,19 @@
 use crate::error::ThermiteError;
 use crate::model::EnabledMods;
 use crate::model::InstalledMod;
+use crate::model::Manifest;
 use crate::model::Mod;
 
+use regex::Regex;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::OnceLock;
+use tracing::trace;
 use tracing::{debug, error};
+
+pub(crate) type ModString = (String, String, Option<String>);
 
 pub struct TempDir {
     pub path: PathBuf,
@@ -105,9 +111,7 @@ pub fn get_enabled_mods(dir: impl AsRef<Path>) -> Result<EnabledMods, ThermiteEr
 /// - The path cannot be canonicalized
 /// - IO Errors
 /// - Improperly formatted JSON files
-pub fn find_mods(
-    dir: impl AsRef<Path>,
-) -> Result<Vec<Result<InstalledMod, ThermiteError>>, ThermiteError> {
+pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteError> {
     let mut res = vec![];
     let dir = dir.as_ref().canonicalize()?;
     debug!("Finding mods in '{}'", dir.display());
@@ -117,44 +121,138 @@ pub fn find_mods(
             debug!("Skipping file {}", child.path().display());
             continue;
         }
-        let path = child.path().join("mod.json");
-        let mod_json = if path.try_exists()? {
-            let raw = fs::read_to_string(&path)?;
-            let Ok(parsed) = json5::from_str(&raw) else {
-                res.push(Err(ThermiteError::UnknownError(format!("Error parsing {}", path.display()))));
-                continue;
-            };
-            parsed
-        } else {
-            continue;
-        };
+        // let path = child.path().join("mod.json");
+        // let mod_json = if path.try_exists()? {
+        //     let raw = fs::read_to_string(&path)?;
+        //     let Ok(parsed) = json5::from_str(&raw) else {
+        //         error!("Error parsing {}", path.display());
+        //         continue;
+        //     };
+        //     parsed
+        // } else {
+        //     continue;
+        // };
         let path = child.path().join("manifest.json");
         let manifest = if path.try_exists()? {
             let raw = fs::read_to_string(&path)?;
             let Ok(parsed) = serde_json::from_str(&raw) else {
-                res.push(Err(ThermiteError::UnknownError(format!("Error parsing {}", path.display()))));
+                error!("Error parsing {}", path.display());
                 continue;
             };
             parsed
         } else {
             continue;
         };
-        let path = child.path().join("thunderstore_author.txt");
-        let author = if path.try_exists()? {
-            fs::read_to_string(path)?
-        } else {
-            continue;
-        };
 
-        res.push(Ok(InstalledMod {
-            manifest,
-            mod_json,
-            author,
-            path: child.path(),
-        }));
+        if let Some(submods) = get_submods(&manifest, child.path()) {
+            debug!(
+                "Found {} submods in {}",
+                submods.len(),
+                child.path().display()
+            );
+            trace!("{:#?}", submods);
+            let modstring =
+                parse_modstring(child.file_name().to_str().ok_or(ThermiteError::UTF8Error)?)?;
+            res.append(
+                &mut submods
+                    .into_iter()
+                    .map(|mut m| {
+                        m.author = modstring.0.clone();
+
+                        m
+                    })
+                    .collect(),
+            );
+        } else {
+            debug!("No mods in {}", child.path().display());
+        }
     }
 
     Ok(res)
+}
+
+fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<InstalledMod>> {
+    let dir = dir.as_ref();
+    debug!("Searching for submods in {}", dir.display());
+    if !dir.is_dir() {
+        debug!("Wasn't a directory, aborting");
+        return None;
+    }
+
+    let mut mods = vec![];
+    for child in dir.read_dir().ok()? {
+        let Ok(child) = child else { continue };
+        match child.file_type() {
+            Ok(ty) => {
+                if ty.is_dir() {
+                    let Some(mut next) = get_submods(manifest, child.path()) else { continue };
+                    mods.append(&mut next);
+                } else {
+                    trace!("Is file {:?} mod.json?", child.file_name());
+                    if child.file_name() == "mod.json" {
+                        trace!("Yes");
+                        let Ok(file) = fs::read_to_string(child.path()) else { continue };
+                        if let Ok(mod_json) = json5::from_str(&file) {
+                            mods.push(InstalledMod {
+                                author: String::new(),
+                                manifest: manifest.clone(),
+                                mod_json,
+                                path: dir.to_path_buf(),
+                            });
+                        } else {
+                            error!("Error parsing JSON in {}", child.path().display());
+                        }
+                    } else {
+                        trace!("No");
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Error {e}");
+            }
+        }
+    }
+
+    if mods.is_empty() {
+        None
+    } else {
+        Some(
+            mods.into_iter()
+                .map(|mut m| {
+                    if m.path.ends_with("/mods") {
+                        m.path.pop();
+                    }
+
+                    m
+                })
+                .collect(),
+        )
+    }
+}
+
+static RE: OnceLock<Regex> = OnceLock::new();
+pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteError> {
+    debug!("Parsing modstring {}", input.as_ref());
+    let reg = RE.get_or_init(|| Regex::new(r"^(\w+)-(\w+)(?:-(\d+\.\d+\.\d+))?$").unwrap());
+    if let Some(captures) = reg.captures(input.as_ref()) {
+        let author = captures
+            .get(1)
+            .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
+            .as_str()
+            .to_owned();
+
+        let name = captures
+            .get(2)
+            .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
+            .as_str()
+            .to_owned();
+
+        let version = captures.get(3).map(|v| v.as_str().to_string());
+
+        Ok((author, name, version))
+    } else {
+        Err(ThermiteError::NameError(input.as_ref().into()))
+    }
 }
 
 #[cfg(feature = "steam")]

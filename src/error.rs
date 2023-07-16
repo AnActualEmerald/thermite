@@ -35,6 +35,10 @@ pub enum ThermiteError {
     ParseIntError(#[from] ParseIntError),
     #[error("Unable to convert integer: {0}")]
     IntConversionError(#[from] TryFromIntError),
+    #[error("Error parsing mod name: {0}")]
+    NameError(String),
+    #[error("Expected string to be UTF8")]
+    UTF8Error,
 }
 
 // ureq::Error is ~240 bytes so we store it in a box
