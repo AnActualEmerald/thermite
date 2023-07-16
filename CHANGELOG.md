@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0-alpha] - 2023-07-16
+
+### Documentation
+
+- Add packages example
+
+### Features
+
+- Support for new northstar package system
+
+### Testing
+
+- Fix enabled_mods tests failing randomly
+
 ## [0.6.5] - 2023-07-07
 
 ### Bug Fixes
