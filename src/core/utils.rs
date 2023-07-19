@@ -4,6 +4,7 @@ use crate::model::InstalledMod;
 use crate::model::Manifest;
 use crate::model::Mod;
 
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs;
 use std::ops::Deref;
@@ -55,6 +56,28 @@ impl Drop for TempDir {
         }
     }
 }
+
+// pub(crate) struct StaticRef<T> {
+//     cell: OnceLock<T>,
+//     init: std::sync::Arc<dyn Fn() -> T>,
+// }
+
+// impl<T> StaticRef<T> {
+//     pub const fn new(f: dyn Fn() -> T) -> Self {
+//         Self {
+//             cell: OnceLock::new(),
+//             init: std::sync::Arc::new(f.into()),
+//         }
+//     }
+// }
+
+// impl<T> Deref for StaticRef<T> {
+//     type Target = T;
+
+//     fn deref(&self) -> &Self::Target {
+//         self.cell.get_or_init(self.init)
+//     }
+// }
 
 /// Returns a list of `Mod`s publled from an index based on the dep stings
 /// from Thunderstore
@@ -230,11 +253,13 @@ fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<Install
     }
 }
 
-static RE: OnceLock<Regex> = OnceLock::new();
+lazy_static! {
+    pub static ref RE: Regex = Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap();
+}
+
 pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteError> {
     debug!("Parsing modstring {}", input.as_ref());
-    let reg = RE.get_or_init(|| Regex::new(r"^(\w+)-(\w+)(?:-(\d+\.\d+\.\d+))?$").unwrap());
-    if let Some(captures) = reg.captures(input.as_ref()) {
+    if let Some(captures) = RE.captures(input.as_ref()) {
         let author = captures
             .get(1)
             .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
@@ -253,6 +278,12 @@ pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteErro
     } else {
         Err(ThermiteError::NameError(input.as_ref().into()))
     }
+}
+
+#[inline]
+#[must_use]
+pub fn validate_modstring(input: impl AsRef<str>) -> bool {
+    RE.is_match(input.as_ref())
 }
 
 #[cfg(feature = "steam")]

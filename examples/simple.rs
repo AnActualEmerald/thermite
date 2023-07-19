@@ -14,7 +14,12 @@ fn main() {
     let mut buffer = vec![];
     download(&mut buffer, &utils.get_latest().unwrap().url).unwrap();
 
-    let target_dir = Path::new("packages").join(&utils.get_latest().unwrap().full_name);
+    let target_dir = Path::new("packages");
 
-    install_mod(Cursor::new(buffer), target_dir).unwrap();
+    install_mod(
+        &utils.get_latest().unwrap().full_name,
+        Cursor::new(buffer),
+        target_dir,
+    )
+    .unwrap();
 }

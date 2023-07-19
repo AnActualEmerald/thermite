@@ -9,7 +9,7 @@
 //!         let latest = md.get_latest().unwrap();
 //!         let mut zipped = vec![];
 //!         download(&mut zipped, &latest.url).unwrap();
-//!         install_mod(Cursor::new(zipped), "mods").unwrap();
+//!         install_mod(&latest.full_name, Cursor::new(zipped), "packages").unwrap();
 //!     }    
 //! }
 //! ```

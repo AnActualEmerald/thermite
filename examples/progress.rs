@@ -41,5 +41,10 @@ fn main() {
     if !Path::new("packages").try_exists().unwrap() {
         fs::create_dir("packages").unwrap();
     }
-    install_mod(Cursor::new(buffer), "packages").unwrap();
+    install_mod(
+        &utils.get_latest().unwrap().full_name,
+        Cursor::new(buffer),
+        "packages",
+    )
+    .unwrap();
 }
