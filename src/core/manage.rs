@@ -76,7 +76,7 @@ pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64> {
     download_with_progress(output, url, |_, _, _| {})
 }
 
-#[deprecated(since = "v0.7.1")]
+#[deprecated(since = "0.7.1")]
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {
@@ -310,11 +310,11 @@ mod test {
     #[test]
     fn fail_insanity() {
         let archive = MockArchive::new();
-        let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| return false);
+        let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| false);
 
         assert!(res.is_err());
         match res {
-            Err(ThermiteError::SanityError) => assert!(true),
+            Err(ThermiteError::SanityError) => {}
             _ => panic!(),
         }
     }

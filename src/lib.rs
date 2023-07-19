@@ -32,7 +32,7 @@ pub mod prelude {
         download, download_with_progress, install_mod, install_northstar, install_with_sanity,
     };
 
-    #[deprecated]
+    #[allow(deprecated)]
     pub use crate::core::manage::uninstall;
     pub use crate::core::utils::{find_mods, get_enabled_mods, resolve_deps};
     #[cfg(all(target_os = "linux", feature = "proton"))]
