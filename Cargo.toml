@@ -20,6 +20,7 @@ required-features = ["steam"]
 [dependencies]
 flate2 = { version = "1.0.25", optional = true }
 json5 = "0.4.1"
+lazy_static = "1.4.0"
 regex = "1.9.1"
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.91"

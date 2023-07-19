@@ -2,17 +2,16 @@ use std::{
     ffi::OsString,
     fs::{self, OpenOptions},
     io::{self, Read, Seek, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
-
-#[cfg(not(feature = "packages"))]
-use std::path::PathBuf;
 
 use crate::error::{Result, ThermiteError};
 
 use zip::ZipArchive;
 
 use tracing::{debug, trace, warn};
+
+use super::utils::validate_modstring;
 
 const CHUNK_SIZE: usize = 1024;
 
@@ -77,6 +76,7 @@ pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64> {
     download_with_progress(output, url, |_, _, _| {})
 }
 
+#[deprecated(since = "v0.7.1")]
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {
@@ -105,10 +105,11 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 /// # Panics
 /// This function will panic if it is unable to get the current system time
 pub fn install_with_sanity<T, F>(
+    mod_string: impl AsRef<str>,
     zip_file: T,
     target_dir: impl AsRef<Path>,
     sanity_check: F,
-) -> Result<()>
+) -> Result<PathBuf>
 where
     T: Read + Seek,
     F: FnOnce(&T) -> bool,
@@ -117,16 +118,25 @@ where
         return Err(ThermiteError::SanityError);
     }
 
-    ZipArchive::new(zip_file)?.extract(target_dir)?;
+    if !validate_modstring(mod_string.as_ref()) {
+        return Err(ThermiteError::NameError(mod_string.as_ref().into()));
+    }
 
-    Ok(())
+    let path = target_dir.as_ref().join(mod_string.as_ref());
+    ZipArchive::new(zip_file)?.extract(&path)?;
+
+    Ok(path)
 }
 
-pub fn install_mod<T>(zip_file: T, target_dir: impl AsRef<Path>) -> Result<()>
+pub fn install_mod<T>(
+    mod_string: impl AsRef<str>,
+    zip_file: T,
+    target_dir: impl AsRef<Path>,
+) -> Result<PathBuf>
 where
     T: Read + Seek,
 {
-    install_with_sanity(zip_file, target_dir, |_| true)
+    install_with_sanity(mod_string, zip_file, target_dir, |_| true)
 }
 
 /// Install N* to the provided path
@@ -300,12 +310,22 @@ mod test {
     #[test]
     fn fail_insanity() {
         let archive = MockArchive::new();
-        let res = install_with_sanity(archive, ".", |_| return false);
+        let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| return false);
 
         assert!(res.is_err());
         match res {
             Err(ThermiteError::SanityError) => assert!(true),
-            _ => assert!(false),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn fail_invalid_name() {
+        let archive = MockArchive::new();
+        let res = install_mod("invalid", archive, ".");
+
+        if let Err(ThermiteError::NameError(name)) = res {
+            assert_eq!(name, "invalid");
         }
     }
 
@@ -313,21 +333,23 @@ mod test {
     fn install() {
         let mut cursor = Cursor::new(TEST_ARCHIVE);
         let path = TempDir::create("./test_dir").expect("Unable to create temp dir");
-        let res = install_mod(&mut cursor, &path);
+        let res = install_mod("foo-bar-0.1.0", &mut cursor, &path);
 
-        assert!(res.is_ok());
-
-        assert!(
-            path.join("mods")
-                .join("Smart CAR")
-                .join("mod.json")
-                .try_exists()
-                .unwrap(),
-            "mod.json should exist"
-        );
-        assert!(
-            path.join("manifest.json").try_exists().unwrap(),
-            "manifest.json should exist"
-        );
+        if let Ok(path) = res {
+            assert!(
+                path.join("mods")
+                    .join("Smart CAR")
+                    .join("mod.json")
+                    .try_exists()
+                    .unwrap(),
+                "mod.json should exist"
+            );
+            assert!(
+                path.join("manifest.json").try_exists().unwrap(),
+                "manifest.json should exist"
+            );
+        } else {
+            panic!("Install failed with {:?}", res);
+        }
     }
 }
