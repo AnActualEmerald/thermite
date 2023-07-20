@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use tracing::trace;
 use tracing::{debug, error};
 
-pub(crate) type ModString = (String, String, Option<String>);
+pub(crate) type ModString = (String, String, String);
 
 pub struct TempDir {
     pub path: PathBuf,
@@ -56,28 +56,6 @@ impl Drop for TempDir {
         }
     }
 }
-
-// pub(crate) struct StaticRef<T> {
-//     cell: OnceLock<T>,
-//     init: std::sync::Arc<dyn Fn() -> T>,
-// }
-
-// impl<T> StaticRef<T> {
-//     pub const fn new(f: dyn Fn() -> T) -> Self {
-//         Self {
-//             cell: OnceLock::new(),
-//             init: std::sync::Arc::new(f.into()),
-//         }
-//     }
-// }
-
-// impl<T> Deref for StaticRef<T> {
-//     type Target = T;
-
-//     fn deref(&self) -> &Self::Target {
-//         self.cell.get_or_init(self.init)
-//     }
-// }
 
 /// Returns a list of `Mod`s publled from an index based on the dep stings
 /// from Thunderstore
@@ -144,17 +122,7 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteErr
             debug!("Skipping file {}", child.path().display());
             continue;
         }
-        // let path = child.path().join("mod.json");
-        // let mod_json = if path.try_exists()? {
-        //     let raw = fs::read_to_string(&path)?;
-        //     let Ok(parsed) = json5::from_str(&raw) else {
-        //         error!("Error parsing {}", path.display());
-        //         continue;
-        //     };
-        //     parsed
-        // } else {
-        //     continue;
-        // };
+
         let path = child.path().join("manifest.json");
         let manifest = if path.try_exists()? {
             let raw = fs::read_to_string(&path)?;
@@ -257,6 +225,11 @@ lazy_static! {
     pub static ref RE: Regex = Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap();
 }
 
+/// Returns the parts of a `author-name-X.Y.Z` string in (`author`, `name`, `version`) order
+///
+/// # Errors
+///
+/// Returns a NameError if the input string is not in the correct format
 pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteError> {
     debug!("Parsing modstring {}", input.as_ref());
     if let Some(captures) = RE.captures(input.as_ref()) {
@@ -272,7 +245,11 @@ pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteErro
             .as_str()
             .to_owned();
 
-        let version = captures.get(3).map(|v| v.as_str().to_string());
+        let version = captures
+            .get(3)
+            .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
+            .as_str()
+            .to_owned();
 
         Ok((author, name, version))
     } else {
@@ -280,6 +257,7 @@ pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteErro
     }
 }
 
+/// Checks that a string is in `author-name-X.Y.Z` format
 #[inline]
 #[must_use]
 pub fn validate_modstring(input: impl AsRef<str>) -> bool {
@@ -291,16 +269,23 @@ pub(crate) mod steam {
     use std::path::PathBuf;
     use steamlocate::SteamDir;
 
+    /// Returns the path to the Steam installation if it exists
+    #[must_use]
+    #[inline]
     pub fn steam_dir() -> Option<PathBuf> {
         SteamDir::locate().map(|v| v.path)
     }
 
+    /// Returns paths to all known Steam libraries
+    #[must_use]
     pub fn steam_libraries() -> Option<Vec<PathBuf>> {
         let mut steamdir = SteamDir::locate()?;
         let folders = steamdir.libraryfolders();
         Some(folders.paths.clone())
     }
 
+    /// Returns the path to the Titanfall installation if it exists
+    #[must_use]
     pub fn titanfall() -> Option<PathBuf> {
         let mut steamdir = SteamDir::locate()?;
         Some(steamdir.app(&1237970)?.path.clone())
@@ -308,6 +293,7 @@ pub(crate) mod steam {
 }
 
 #[cfg(all(target_os = "linux", feature = "proton"))]
+#[deprecated(since = "0.8.0", note = "Northstar Proton is no longer required")]
 pub(crate) mod proton {
     use flate2::read::GzDecoder;
     use std::{fs::File, io::Write, path::Path};
@@ -355,18 +341,17 @@ pub(crate) mod proton {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeMap, path::PathBuf};
+    use std::{collections::BTreeMap, fs, path::PathBuf};
 
-    use crate::model::Mod;
+    use crate::{error::ThermiteError, model::Mod};
 
-    use super::{resolve_deps, TempDir};
-
-    const TEST_FOLDER: &str = "./test";
+    use super::{get_enabled_mods, parse_modstring, resolve_deps, validate_modstring, TempDir};
 
     #[test]
     fn temp_dir_deletes_on_drop() {
+        let test_folder = "temp_dir";
         {
-            let temp_dir = TempDir::create(TEST_FOLDER);
+            let temp_dir = TempDir::create(test_folder);
             assert!(temp_dir.is_ok());
 
             if let Ok(dir) = temp_dir {
@@ -375,9 +360,49 @@ mod test {
             }
         }
 
-        let path = PathBuf::from(TEST_FOLDER);
+        let path = PathBuf::from(test_folder);
         let Ok(exists) = path.try_exists() else { panic!("Unable to check if temp dir exists") };
         assert!(!exists);
+    }
+
+    #[test]
+    fn fail_find_enabledmods() {
+        let test_folder = "fail_enabled_mods_test";
+        let temp_dir = TempDir::create(test_folder).unwrap();
+        if let Err(ThermiteError::MissingFile(path)) = get_enabled_mods(&temp_dir) {
+            assert_eq!(
+                *path,
+                temp_dir.canonicalize().unwrap().join("enabledmods.json")
+            );
+        } else {
+            panic!("enabledmods.json should not exist");
+        }
+    }
+
+    #[test]
+    fn fail_parse_enabledmods() {
+        let test_folder = "parse_enabled_mods_test";
+        let temp_dir = TempDir::create(test_folder).unwrap();
+        fs::write(temp_dir.join("enabledmods.json"), b"invalid json").unwrap();
+        if let Err(ThermiteError::JsonError(_)) = get_enabled_mods(temp_dir) {
+        } else {
+            panic!("enabledmods.json should not be valid json");
+        }
+    }
+
+    #[test]
+    fn suceed_get_enabledmods() {
+        let test_folder = "pass_enabled_mods_test";
+        let temp_dir = TempDir::create(test_folder).unwrap();
+        fs::write(temp_dir.join("enabledmods.json"), b"{}").unwrap();
+        if let Ok(mods) = get_enabled_mods(temp_dir) {
+            assert!(mods.client);
+            assert!(mods.custom);
+            assert!(mods.servers);
+            assert!(mods.mods.is_empty());
+        } else {
+            panic!("enabledmods.json should be valid but empty");
+        }
     }
 
     #[test]
@@ -398,6 +423,26 @@ mod test {
 
         assert!(res.is_ok());
         assert_eq!(res.unwrap()[0], test_index[0]);
+    }
+
+    #[test]
+    fn dont_resolve_northstar_as_dependency() {
+        let test_index: &[Mod] = &[Mod {
+            name: "Northstar".into(),
+            latest: "0.1.0".into(),
+            upgradable: false,
+            global: false,
+            installed: false,
+            versions: BTreeMap::new(),
+            author: "Northstar".into(),
+        }];
+
+        let test_deps = &["Northstar-Northstar-0.1.0"];
+
+        let res = resolve_deps(test_deps, test_index);
+
+        assert!(res.is_ok());
+        assert!(res.unwrap().is_empty());
     }
 
     #[test]
@@ -423,5 +468,41 @@ mod test {
         let res = resolve_deps(test_deps, test_index);
 
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn sucessfully_validate_modstring() {
+        let test_string = "author-mod-0.1.0";
+        assert!(validate_modstring(test_string));
+    }
+
+    #[test]
+    fn fail_validate_modstring() {
+        let test_string = "invalid";
+        assert!(!validate_modstring(test_string));
+    }
+
+    #[test]
+    fn successfully_parse_modstring() {
+        let test_string = "author-mod-0.1.0";
+        let res = parse_modstring(test_string);
+
+        if let Ok(parsed) = res {
+            assert_eq!(parsed, ("author".into(), "mod".into(), "0.1.0".into()));
+        } else {
+            panic!("Valid mod string failed to be parsed");
+        }
+    }
+
+    #[test]
+    fn fail_parse_modstring() {
+        let test_string = "invalid";
+        let res = parse_modstring(test_string);
+
+        if let Err(ThermiteError::NameError(name)) = res {
+            assert_eq!(name, test_string);
+        } else {
+            panic!("Invalid mod string didn't error");
+        }
     }
 }

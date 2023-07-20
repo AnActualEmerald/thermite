@@ -108,15 +108,16 @@ pub struct Manifest {
 
 // enabledmods.json
 
-/// Represents an enabledmods.json file
+/// Represents an enabledmods.json file. Core mods will default to `true` if not present when deserializing.
+///
 /// Automatically writes any changes made when dropped (call `dont_save` to disable)
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnabledMods {
-    #[serde(rename = "Northstar.Client")]
+    #[serde(rename = "Northstar.Client", default = "default_mod_state")]
     pub client: bool,
-    #[serde(rename = "Northstar.Custom")]
+    #[serde(rename = "Northstar.Custom", default = "default_mod_state")]
     pub custom: bool,
-    #[serde(rename = "Northstar.CustomServers")]
+    #[serde(rename = "Northstar.CustomServers", default = "default_mod_state")]
     pub servers: bool,
     #[serde(flatten)]
     pub mods: BTreeMap<String, bool>,
@@ -128,6 +129,10 @@ pub struct EnabledMods {
     path: Option<PathBuf>,
     #[serde(skip)]
     do_save: bool,
+}
+
+fn default_mod_state() -> bool {
+    true
 }
 
 impl Hash for EnabledMods {
