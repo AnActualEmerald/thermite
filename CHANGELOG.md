@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.7.0-alpha] - 2023-07-16
+## [0.7.0-alpha.1] - 2023-07-20
 
 ### Documentation
 
@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 ### Testing
 
 - Fix enabled_mods tests failing randomly
+- Increase utils test coverage
 
 ## [0.6.5] - 2023-07-07
 
