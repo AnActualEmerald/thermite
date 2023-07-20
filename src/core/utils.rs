@@ -293,7 +293,7 @@ pub(crate) mod steam {
 }
 
 #[cfg(all(target_os = "linux", feature = "proton"))]
-#[deprecated(since = "0.8.0", note = "Northstar Proton is no longer required")]
+//#[deprecated(since = "0.8.0", note = "Northstar Proton is no longer required")]
 pub(crate) mod proton {
     use flate2::read::GzDecoder;
     use std::{fs::File, io::Write, path::Path};
