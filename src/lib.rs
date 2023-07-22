@@ -25,6 +25,9 @@ pub const CORE_MODS: [&str; 3] = [
     "northstar.client",
 ];
 
+pub const TITANFALL_STEAM_ID: u32 = 1237970;
+pub const TITANFALL_ORIGIN_IDS: [&str; 2] = ["Origin.OFR.50.0001452", "Origin.OFR.50.0001456"];
+
 // Important functions and structs
 pub mod prelude {
     pub use crate::api::get_package_index;
@@ -41,4 +44,5 @@ pub mod prelude {
     pub use crate::core::{steam_dir, steam_libraries, titanfall};
     pub use crate::error::ThermiteError;
     pub use crate::CORE_MODS;
+    pub use crate::TITANFALL_STEAM_ID;
 }
