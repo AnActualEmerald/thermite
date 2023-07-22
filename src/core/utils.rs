@@ -269,6 +269,8 @@ pub(crate) mod steam {
     use std::path::PathBuf;
     use steamlocate::SteamDir;
 
+    use crate::TITANFALL_STEAM_ID;
+
     /// Returns the path to the Steam installation if it exists
     #[must_use]
     #[inline]
@@ -288,7 +290,7 @@ pub(crate) mod steam {
     #[must_use]
     pub fn titanfall() -> Option<PathBuf> {
         let mut steamdir = SteamDir::locate()?;
-        Some(steamdir.app(&1237970)?.path.clone())
+        Some(steamdir.app(&TITANFALL_STEAM_ID)?.path.clone())
     }
 }
 
