@@ -6,6 +6,7 @@ use crate::model::Mod;
 
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::fmt::Debug;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
@@ -16,6 +17,7 @@ use tracing::{debug, error};
 
 pub(crate) type ModString = (String, String, String);
 
+#[derive(Debug, Clone)]
 pub struct TempDir {
     pub path: PathBuf,
 }
@@ -176,22 +178,27 @@ fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<Install
         match child.file_type() {
             Ok(ty) => {
                 if ty.is_dir() {
-                    let Some(mut next) = get_submods(manifest, child.path()) else { continue };
+                    let Some(mut next) = get_submods(manifest, child.path()) else {
+                        continue;
+                    };
                     mods.append(&mut next);
                 } else {
                     trace!("Is file {:?} mod.json?", child.file_name());
                     if child.file_name() == "mod.json" {
                         trace!("Yes");
-                        let Ok(file) = fs::read_to_string(child.path()) else { continue };
-                        if let Ok(mod_json) = json5::from_str(&file) {
-                            mods.push(InstalledMod {
+                        let Ok(file) = fs::read_to_string(child.path()) else {
+                            continue;
+                        };
+                        match json5::from_str(&file) {
+                            Ok(mod_json) => mods.push(InstalledMod {
                                 author: String::new(),
                                 manifest: manifest.clone(),
                                 mod_json,
                                 path: dir.to_path_buf(),
-                            });
-                        } else {
-                            error!("Error parsing JSON in {}", child.path().display());
+                            }),
+                            Err(e) => {
+                                error!("Error parsing JSON in {}: {e}", child.path().display());
+                            }
                         }
                     } else {
                         trace!("No");
@@ -343,11 +350,17 @@ pub(crate) mod proton {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeMap, fs, path::PathBuf};
+    use std::{
+        collections::BTreeMap,
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use crate::{error::ThermiteError, model::Mod};
 
-    use super::{get_enabled_mods, parse_modstring, resolve_deps, validate_modstring, TempDir};
+    use super::{
+        find_mods, get_enabled_mods, parse_modstring, resolve_deps, validate_modstring, TempDir,
+    };
 
     #[test]
     fn temp_dir_deletes_on_drop() {
@@ -357,13 +370,17 @@ mod test {
             assert!(temp_dir.is_ok());
 
             if let Ok(dir) = temp_dir {
-                let Ok(exists) = dir.try_exists() else { panic!("Unable to check if temp dir exists") };
+                let exists = dir
+                    .try_exists()
+                    .expect("Unable to check if temp dir exists");
                 assert!(exists);
             }
         }
 
         let path = PathBuf::from(test_folder);
-        let Ok(exists) = path.try_exists() else { panic!("Unable to check if temp dir exists") };
+        let exists = path
+            .try_exists()
+            .expect("Unable to check if temp dir exists");
         assert!(!exists);
     }
 
@@ -393,7 +410,7 @@ mod test {
     }
 
     #[test]
-    fn suceed_get_enabledmods() {
+    fn pass_get_enabledmods() {
         let test_folder = "pass_enabled_mods_test";
         let temp_dir = TempDir::create(test_folder).unwrap();
         fs::write(temp_dir.join("enabledmods.json"), b"{}").unwrap();
@@ -505,6 +522,51 @@ mod test {
             assert_eq!(name, test_string);
         } else {
             panic!("Invalid mod string didn't error");
+        }
+    }
+
+    const MANIFEST: &str = r#"{
+        "namespace": "northstar",
+        "name": "Northstar",
+        "description": "Titanfall 2 modding and custom server framework.",
+        "version_number": "1.22.0",
+        "dependencies": [],
+        "website_url": ""
+      }"#;
+
+    const MOD_JSON: &str = r#"{
+        "Name": "Yourname.Modname",
+        "Description": "Woo yeah wooo!",
+        "Version": "1.2.3",
+     
+        "LoadPriority": 0,
+        "ConVars": [],
+        "Scripts": [],
+        "Localisation": []
+     }"#;
+
+    fn setup_mods(path: impl AsRef<Path>) {
+        let root = path.as_ref().join("northstar-mod-1.2.3");
+        fs::create_dir_all(&root).expect("create dir");
+        fs::write(root.join("manifest.json"), MANIFEST).expect("write manifest");
+        let _mod = root.join("RealMod");
+        fs::create_dir_all(&_mod).expect("create dir");
+        fs::write(_mod.join("mod.json"), MOD_JSON).expect("write mod.json");
+    }
+
+    #[test]
+    fn discover_mods() {
+        let dir = TempDir::create("./mod_discovery").expect("Temp dir");
+        setup_mods(&dir);
+        let res = find_mods(dir);
+
+        if let Ok(mods) = res {
+            assert_eq!(mods.len(), 1, "Should be one mod");
+            assert_eq!(mods[0].manifest.name, "Northstar");
+            assert_eq!(mods[0].author, "northstar");
+            assert_eq!(mods[0].mod_json.name, "Yourname.Modname");
+        } else {
+            panic!("Mod discovery failed: {res:?}");
         }
     }
 }
