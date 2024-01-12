@@ -39,3 +39,5 @@ proton = ["tar", "flate2"]
 [dev-dependencies]
 indicatif = "0.17.3"
 mockall = { version = "0.12" }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-test = "0.2.4"

@@ -59,3 +59,24 @@ impl From<serde_json::Error> for ThermiteError {
         Self::JsonError(value.into())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use ureq::ErrorKind;
+
+    use super::ThermiteError;
+
+    #[test]
+    fn from_ureq() {
+        let err = ureq::get("http://your_mother:8008").call().expect_err("How");
+
+        let thermite_err = ThermiteError::from(err);
+        
+        if let ThermiteError::NetworkError(u) = thermite_err {
+            assert_eq!(u.kind(), ErrorKind::Dns);
+        } else {
+            panic!("Unexpected error type: {:?}", thermite_err);
+        }
+    }
+
+}

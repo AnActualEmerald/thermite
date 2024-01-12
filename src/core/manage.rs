@@ -147,10 +147,7 @@ where
 ///
 /// # Errors
 /// * IO Errors
-pub fn install_northstar(
-    zip_file: impl Read + Seek + Copy,
-    game_path: impl AsRef<Path>,
-) -> Result<()> {
+pub fn install_northstar(zip_file: impl Read + Seek, game_path: impl AsRef<Path>) -> Result<()> {
     let target = game_path.as_ref();
     let mut archive = ZipArchive::new(zip_file)?;
 
@@ -259,6 +256,7 @@ mod test {
 
     use crate::core::utils::TempDir;
     use mockall::mock;
+    use tracing::info;
     use std::io::Cursor;
 
     use super::{install_mod, *};
@@ -289,6 +287,7 @@ mod test {
     const TEST_SIZE_BYTES: u64 = 2455;
 
     const TEST_ARCHIVE: &[u8] = include_bytes!("test_archive.zip");
+    const TEST_NS_ARCHIVE: &[u8] = include_bytes!("northstar.zip");
 
     #[test]
     fn download_file() {
@@ -347,6 +346,31 @@ mod test {
             assert!(
                 path.join("manifest.json").try_exists().unwrap(),
                 "manifest.json should exist"
+            );
+        } else {
+            panic!("Install failed with {:?}", res);
+        }
+    }
+
+    #[test]
+    fn northstar() {
+        let mut cursor = Cursor::new(TEST_NS_ARCHIVE);
+        let path = TempDir::create("./northstar_test").expect("Create temp dir");
+        std::fs::create_dir_all(&path).expect("create dir");
+        let res = install_northstar(&mut cursor, &path);
+
+        info!("{:?}: {}", path, path.exists());
+        info!("{res:?}");
+
+        if res.is_ok() {
+            assert!(
+                path.join("NorthstarLauncher.exe").try_exists().unwrap(),
+                "NorthstarLauncher should exist"
+            );
+
+            assert!(
+                path.join("R2Northstar").join("mods").join("Northstar.Client").try_exists().unwrap(),
+                "Northstar client mod should exist"
             );
         } else {
             panic!("Install failed with {:?}", res);
