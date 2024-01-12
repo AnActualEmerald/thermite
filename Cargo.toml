@@ -1,6 +1,6 @@
 [package]
 name = "libthermite"
-version = "0.7.0-beta" # managed by release.sh
+version = "0.7.0" # managed by release.sh
 edition = "2021"
 description = "Crate for managing Northstar mods"
 license = "MIT"

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.7.0-beta] - 2023-07-21
+## [0.7.0] - 2024-01-12
 
 ### Documentation
 
@@ -11,11 +11,19 @@ All notable changes to this project will be documented in this file.
 ### Features
 
 - Support for new northstar package system
+- Expose steam and origin IDs as constants
+
+### Miscellaneous Tasks
+
+- Specify exact dependency features
+- Bump mockall
+- Loosen version requirements
 
 ### Testing
 
 - Fix enabled_mods tests failing randomly
 - Increase utils test coverage
+- Write more tests
 
 ## [0.6.5] - 2023-07-07
 
