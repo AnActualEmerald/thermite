@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.1] - 2024-02-01
+
+### Miscellaneous Tasks
+
+- Add workflow to create github release
+
+### Refactor
+
+- Rename consts to specifically specify Titanfall2 (#10)
+
 ## [0.7.0] - 2024-01-12
 
 ### Documentation
