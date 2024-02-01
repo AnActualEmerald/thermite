@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -30,16 +30,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
           override: true
           components: llvm-tools-preview
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2.7
 
       - name: Download grcov
         run: |
@@ -52,6 +52,5 @@ jobs:
           command: xtask
           args: coverage
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3.1.4
-        with:
+        uses: codecov/codecov-action@v4
           files: coverage/*.lcov

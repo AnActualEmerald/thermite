@@ -14,17 +14,17 @@ jobs:
   github-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.1.1
       - name: Generate changelog
         id: changelog
-        uses: orhun/git-cliff-action@v2
+        uses: orhun/git-cliff-action@v2.3.0
         with:
           config: cliff.toml
           args: --verbose -l -s all
         env: 
           OUTPUT: CHANGES.md
       - name: Publish release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@v2.7.0
         with:
           file: LICENSE
           repo_token: ${{ secrets.GITHUB_TOKEN }}
