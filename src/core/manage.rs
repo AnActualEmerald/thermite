@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     ffi::OsString,
     fs::{self, OpenOptions},
     io::{self, Read, Seek, Write},
@@ -112,10 +113,10 @@ pub fn install_with_sanity<T, F>(
 ) -> Result<PathBuf>
 where
     T: Read + Seek,
-    F: FnOnce(&T) -> bool,
+    F: FnOnce(&T) -> Result<(), Box<dyn Error>>,
 {
-    if !sanity_check(&zip_file) {
-        return Err(ThermiteError::SanityError);
+    if let Err(e) = sanity_check(&zip_file) {
+        return Err(ThermiteError::SanityError(e));
     }
 
     if !validate_modstring(mod_string.as_ref()) {
@@ -136,7 +137,7 @@ pub fn install_mod<T>(
 where
     T: Read + Seek,
 {
-    install_with_sanity(mod_string, zip_file, target_dir, |_| true)
+    install_with_sanity(mod_string, zip_file, target_dir, |_| Ok(()))
 }
 
 /// Install N* to the provided path
@@ -256,8 +257,8 @@ mod test {
 
     use crate::core::utils::TempDir;
     use mockall::mock;
-    use tracing::info;
     use std::io::Cursor;
+    use tracing::info;
 
     use super::{install_mod, *};
 
@@ -286,8 +287,8 @@ mod test {
         "https://freetestdata.com/wp-content/uploads/2023/04/2.4KB_JSON-File_FreeTestData.json";
     const TEST_SIZE_BYTES: u64 = 2455;
 
-    const TEST_ARCHIVE: &[u8] = include_bytes!("test_archive.zip");
-    const TEST_NS_ARCHIVE: &[u8] = include_bytes!("northstar.zip");
+    const TEST_ARCHIVE: &[u8] = include_bytes!("test_media/test_archive.zip");
+    const TEST_NS_ARCHIVE: &[u8] = include_bytes!("test_media/northstar.zip");
 
     #[test]
     fn download_file() {
@@ -309,11 +310,13 @@ mod test {
     #[test]
     fn fail_insanity() {
         let archive = MockArchive::new();
-        let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| false);
+        let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| {
+            Err(Box::new(ThermiteError::UnknownError("uh oh".into())))
+        });
 
         assert!(res.is_err());
         match res {
-            Err(ThermiteError::SanityError) => {}
+            Err(ThermiteError::SanityError(_)) => {}
             _ => panic!(),
         }
     }
@@ -369,7 +372,11 @@ mod test {
             );
 
             assert!(
-                path.join("R2Northstar").join("mods").join("Northstar.Client").try_exists().unwrap(),
+                path.join("R2Northstar")
+                    .join("mods")
+                    .join("Northstar.Client")
+                    .try_exists()
+                    .unwrap(),
                 "Northstar client mod should exist"
             );
         } else {
