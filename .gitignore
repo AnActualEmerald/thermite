@@ -1,4 +1,4 @@
 target/
 mods/
 ./*.zip
-*.lock
+Cargo.lock
