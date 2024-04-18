@@ -36,7 +36,6 @@ jobs:
         uses: cachix/install-nix-action@v26
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: Swatinem/rust-cache@v2.7
       - name: Run xtask coverage
         run: nix develop .#coverage --impure --command cargo xtask coverage
       - name: Upload to codecov.io
