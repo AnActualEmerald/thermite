@@ -77,7 +77,7 @@ pub fn download(output: impl Write, url: impl AsRef<str>) -> Result<u64> {
     download_with_progress(output, url, |_, _, _| {})
 }
 
-#[deprecated(since = "0.7.1")]
+#[deprecated(since = "0.7.1", note = "just use std::fs directly")]
 pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
     for p in mods {
         if fs::remove_dir_all(p).is_err() {
