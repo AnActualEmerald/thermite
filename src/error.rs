@@ -7,7 +7,7 @@ use std::{
 
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, ThermiteError>;
+pub type Result<T, E = ThermiteError> = std::result::Result<T, E>;
 
 #[derive(Error, Debug)]
 pub enum ThermiteError {
@@ -27,8 +27,8 @@ pub enum ThermiteError {
     DepError(String),
     #[error("Error stripping directory prefix {0}\nIs the mod formatted correctly?")]
     PrefixError(#[from] StripPrefixError),
-    #[error("Sanity check failed")]
-    SanityError,
+    #[error("Sanity check failed: {0}")]
+    SanityError(Box<dyn Error>),
     #[error("Attempted to save a file but the path was None")]
     MissingPath,
     #[error("Error converting string to integer: {0}")]

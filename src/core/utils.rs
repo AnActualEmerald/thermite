@@ -305,7 +305,7 @@ pub(crate) mod steam {
 //#[deprecated(since = "0.8.0", note = "Northstar Proton is no longer required")]
 pub(crate) mod proton {
     use flate2::read::GzDecoder;
-    use std::{fs::File, io::Write, path::Path};
+    use std::{io::{Read, Write}, path::Path};
     use tar::Archive;
     use tracing::debug;
 
@@ -313,14 +313,18 @@ pub(crate) mod proton {
         core::manage::download,
         error::{Result, ThermiteError},
     };
-    const BASE_URL: &str = "https://github.com/cyrv6737/NorthstarProton/releases/";
+    const BASE_URL: &str = "https://github.com/R2NorthstarTools/NorthstarProton/releases/";
 
     /// Returns the latest tag from the NorthstarProton repo
+    ///
+    /// # Errors
+    /// * Network error
+    /// * Unexpected URL format
     pub fn latest_release() -> Result<String> {
         let url = format!("{}latest", BASE_URL);
         let res = ureq::get(&url).call()?;
-        debug!("{:#?}", res);
         let location = res.get_url();
+        debug!("{url} redirected to {location}");
 
         Ok(location
             .split('/')
@@ -328,10 +332,12 @@ pub(crate) mod proton {
             .ok_or_else(|| ThermiteError::UnknownError("Malformed location URL".into()))?
             .to_owned())
     }
-    /// Convinience function for downloading a given tag from the NorthstarProton repo
+
+    /// Convinience function for downloading a given tag from the NorthstarProton repo.
+    /// If you have a URL already, just use `thermite::manage::download`
     pub fn download_ns_proton(tag: impl AsRef<str>, output: impl Write) -> Result<u64> {
         let url = format!(
-            "{}download/{}/NorthstarProton-{}.tar.gz",
+            "{}download/{}/NorthstarProton{}.tar.gz",
             BASE_URL,
             tag.as_ref(),
             tag.as_ref().trim_matches('v')
@@ -339,12 +345,46 @@ pub(crate) mod proton {
         download(output, url)
     }
 
-    /// Extract the NorthstarProton tarball into a given directory
-    pub fn install_ns_proton(archive: &File, dest: impl AsRef<Path>) -> Result<()> {
+    /// Extract the NorthstarProton tarball into a given directory.
+    /// Only supports extracting to a filesystem path.
+    /// 
+    /// # Errors
+    /// * IO errors
+    pub fn install_ns_proton(archive: impl Read, dest: impl AsRef<Path>) -> Result<()> {
         let mut tarball = Archive::new(GzDecoder::new(archive));
         tarball.unpack(dest)?;
 
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod test {
+        use std::io::Cursor;
+
+        use crate::core::utils::TempDir;
+
+        use super::latest_release;
+
+
+        #[test]
+        fn get_latest_proton_version() {
+            let res = latest_release();
+            assert!(res.is_ok());
+            
+        }
+
+        #[test]
+        fn extract_proton() {
+            let dir = TempDir::create(std::env::temp_dir().join("NSPROTON_TEST")).expect("temp dir");
+            let archive = include_bytes!("test_media/NorthstarProton8-28.tar.gz");
+            let cursor = Cursor::new(archive);
+            let res = super::install_ns_proton(cursor, &dir);
+            assert!(res.is_ok());
+
+            let extracted = dir.join("NorthstarProton8-28.txt");
+            assert!(extracted.exists());
+            assert_eq!(std::fs::read_to_string(extracted).expect("read file"), "The real proton was too big to use as test media\n");
+        }
     }
 }
 
