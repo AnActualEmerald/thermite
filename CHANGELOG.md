@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2024-04-21
+
+### Bug Fixes
+
+- Update NorthstarProton url
+
+### Features
+
+- Return Result from sanity check
+
+### Miscellaneous Tasks
+
+- Update action versions
+- Nixify
+
 ## [0.7.1] - 2024-02-01
 
 ### Miscellaneous Tasks
@@ -22,9 +37,13 @@ All notable changes to this project will be documented in this file.
 
 - Support for new northstar package system
 - Expose steam and origin IDs as constants
+- Expose steam and origin IDs as constants
 
 ### Miscellaneous Tasks
 
+- Specify exact dependency features
+- Bump mockall
+- Loosen version requirements
 - Specify exact dependency features
 - Bump mockall
 - Loosen version requirements
@@ -33,6 +52,7 @@ All notable changes to this project will be documented in this file.
 
 - Fix enabled_mods tests failing randomly
 - Increase utils test coverage
+- Write more tests
 - Write more tests
 
 ## [0.6.5] - 2023-07-07
