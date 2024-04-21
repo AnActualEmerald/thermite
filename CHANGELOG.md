@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2024-04-21
+
+### Bug Fixes
+
+- Make SanityError Send + Sync
+
 ## [0.8.0] - 2024-04-21
 
 ### Bug Fixes
