@@ -113,7 +113,7 @@ pub fn install_with_sanity<T, F>(
 ) -> Result<PathBuf>
 where
     T: Read + Seek,
-    F: FnOnce(&T) -> Result<(), Box<dyn Error>>,
+    F: FnOnce(&T) -> Result<(), Box<dyn Error + Send + Sync + 'static>>,
 {
     if let Err(e) = sanity_check(&zip_file) {
         return Err(ThermiteError::SanityError(e));

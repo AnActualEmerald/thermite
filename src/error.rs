@@ -28,7 +28,7 @@ pub enum ThermiteError {
     #[error("Error stripping directory prefix {0}\nIs the mod formatted correctly?")]
     PrefixError(#[from] StripPrefixError),
     #[error("Sanity check failed: {0}")]
-    SanityError(Box<dyn Error>),
+    SanityError(Box<dyn Error + Send + Sync + 'static>),
     #[error("Attempted to save a file but the path was None")]
     MissingPath,
     #[error("Error converting string to integer: {0}")]
