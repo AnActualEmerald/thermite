@@ -18,8 +18,8 @@ use tracing::{debug, error};
 pub(crate) type ModString = (String, String, String);
 
 #[derive(Debug, Clone)]
-pub struct TempDir {
-    pub path: PathBuf,
+pub(crate) struct TempDir {
+    pub(crate) path: PathBuf,
 }
 
 impl TempDir {
@@ -150,7 +150,7 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteErr
                 &mut submods
                     .into_iter()
                     .map(|mut m| {
-                        m.author = modstring.0.clone();
+                        m.author.clone_from(&modstring.0);
 
                         m
                     })
@@ -229,14 +229,15 @@ fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<Install
 }
 
 lazy_static! {
-    pub static ref RE: Regex = Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap();
+    pub static ref RE: Regex =
+        Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").expect("lazy compile regex");
 }
 
 /// Returns the parts of a `author-name-X.Y.Z` string in (`author`, `name`, `version`) order
 ///
 /// # Errors
 ///
-/// Returns a NameError if the input string is not in the correct format
+/// Returns a `NameError` if the input string is not in the correct format
 pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteError> {
     debug!("Parsing modstring {}", input.as_ref());
     if let Some(captures) = RE.captures(input.as_ref()) {
@@ -305,7 +306,10 @@ pub(crate) mod steam {
 //#[deprecated(since = "0.8.0", note = "Northstar Proton is no longer required")]
 pub(crate) mod proton {
     use flate2::read::GzDecoder;
-    use std::{io::{Read, Write}, path::Path};
+    use std::{
+        io::{Read, Write},
+        path::Path,
+    };
     use tar::Archive;
     use tracing::debug;
 
@@ -347,7 +351,7 @@ pub(crate) mod proton {
 
     /// Extract the NorthstarProton tarball into a given directory.
     /// Only supports extracting to a filesystem path.
-    /// 
+    ///
     /// # Errors
     /// * IO errors
     pub fn install_ns_proton(archive: impl Read, dest: impl AsRef<Path>) -> Result<()> {
@@ -365,17 +369,16 @@ pub(crate) mod proton {
 
         use super::latest_release;
 
-
         #[test]
         fn get_latest_proton_version() {
             let res = latest_release();
             assert!(res.is_ok());
-            
         }
 
         #[test]
         fn extract_proton() {
-            let dir = TempDir::create(std::env::temp_dir().join("NSPROTON_TEST")).expect("temp dir");
+            let dir =
+                TempDir::create(std::env::temp_dir().join("NSPROTON_TEST")).expect("temp dir");
             let archive = include_bytes!("test_media/NorthstarProton8-28.tar.gz");
             let cursor = Cursor::new(archive);
             let res = super::install_ns_proton(cursor, &dir);
@@ -383,7 +386,10 @@ pub(crate) mod proton {
 
             let extracted = dir.join("NorthstarProton8-28.txt");
             assert!(extracted.exists());
-            assert_eq!(std::fs::read_to_string(extracted).expect("read file"), "The real proton was too big to use as test media\n");
+            assert_eq!(
+                std::fs::read_to_string(extracted).expect("read file"),
+                "The real proton was too big to use as test media\n"
+            );
         }
     }
 }

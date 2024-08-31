@@ -8,7 +8,7 @@ use crate::{
     model::{Mod, ModVersion},
 };
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 struct PackageListing {
     name: String,
     owner: String,
@@ -17,7 +17,7 @@ struct PackageListing {
     _extra: HashMap<String, Value>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 struct PackageVersion {
     dependencies: Vec<String>,
     description: String,
@@ -30,9 +30,11 @@ struct PackageVersion {
     _extra: HashMap<String, Value>,
 }
 
+/// Get a list of available packges from `northstar.thunderstore.io`
+///
 /// # Errors
-/// * IO Erros
-/// * Unexpected response format from thunderstore
+/// * IO Errors
+/// * Unexpected response format from Thunderstore
 pub fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
     let raw = ureq::get("https://northstar.thunderstore.io/c/northstar/api/v1/package/")
         .set("accept", "application/json")

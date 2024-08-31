@@ -175,9 +175,9 @@ pub fn install_northstar(zip_file: impl Read + Seek, game_path: impl AsRef<Path>
         {
             let out = target.join(
                 f.enclosed_name()
-                    .unwrap()
+                    .expect("enclosed name")
                     .strip_prefix("Northstar")
-                    .unwrap(),
+                    .expect("Nortstar prefix"),
             );
 
             if (*f.name()).ends_with('/') {

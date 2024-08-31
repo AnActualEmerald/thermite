@@ -160,7 +160,7 @@ impl Default for EnabledMods {
 
 impl Drop for EnabledMods {
     fn drop(&mut self) {
-        if self.path.is_some() {
+        if let Some(path) = self.path.as_ref() {
             let hash = {
                 let mut hasher = DefaultHasher::new();
                 self.hash(&mut hasher);
@@ -171,11 +171,11 @@ impl Drop for EnabledMods {
                 if let Err(e) = self.save() {
                     error!(
                         "Encountered error while saving enabled_mods.json to {}:\n {}",
-                        self.path.as_ref().unwrap().display(),
+                        path.display(),
                         e
                     );
                 } else {
-                    debug!("Wrote file at {}", self.path.as_ref().unwrap().display());
+                    debug!("Wrote file at {}", path.display());
                 }
             }
         }
@@ -191,7 +191,7 @@ impl EnabledMods {
     pub fn load(path: impl AsRef<Path>) -> Result<Self, ThermiteError> {
         let raw = fs::read_to_string(path)?;
 
-        json5::from_str(&raw).map_err(|e| e.into())
+        json5::from_str(&raw).map_err(Into::into)
     }
 
     /// Returns a default `EnabledMods` with the path property set
@@ -254,7 +254,7 @@ impl EnabledMods {
     /// # Warning
     /// Returns `true` if a mod is missing from the file
     pub fn is_enabled(&self, name: impl AsRef<str>) -> bool {
-        *self.mods.get(name.as_ref()).unwrap_or(&true)
+        self.mods.get(name.as_ref()).copied().unwrap_or(true)
     }
 
     /// Get the current state of a mod if it exists
