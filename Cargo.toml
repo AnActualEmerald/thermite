@@ -5,40 +5,65 @@ edition = "2021"
 description = "Crate for managing Northstar mods"
 license = "MIT"
 repository = "https://forge.greenboi.me/Emerald/thermite"
-exclude = ["commands/", "*.zip" , "*.tar.gz"]
+exclude = [
+    "commands/",
+    "*.zip",
+    "*.tar.gz",
+]
 
 [workspace]
-members = ["xtask"]
+members = [
+    "xtask",
+]
 
 [lib]
 name = "thermite"
 
 [[example]]
 name = "steam"
-required-features = ["steam"]
+required-features = [
+    "steam",
+]
 
 [dependencies]
-flate2 = { version = "^1.0", optional = true , default-features = false }
+flate2 = { version = "^1.0", optional = true, default-features = false }
 json5 = "^0.4"
 lazy_static = "^1.4"
-regex = { default-features = false, features=["unicode-perl"], version = "^1.10" }
-serde = { version = "^1.0", features = ["serde_derive"], default-features = false }
+regex = { default-features = false, features = [
+    "unicode-perl",
+], version = "^1.10" }
+serde = { version = "^1.0", features = [
+    "serde_derive",
+], default-features = false }
 serde_json = "^1.0"
 steamlocate = { version = "^1", optional = true }
 tar = { version = "^0.4", optional = true }
 thiserror = "^1.0"
 tracing = { default-features = false, version = "^0.1" }
 ureq = { version = "^2.6" }
-zip = { default-features = false, version = "^0.6", features = ["deflate"] }
+zip = { default-features = false, version = "^2.2", features = [
+    "deflate",
+] }
 
 [features]
-default = []
-steam = ["steamlocate"]
-proton = ["tar", "flate2"]
-all = ["steam", "proton"]
+default = [
+]
+steam = [
+    "steamlocate",
+]
+proton = [
+    "tar",
+    "flate2",
+]
+all = [
+    "steam",
+    "proton",
+]
 
 [dev-dependencies]
 indicatif = "0.17.3"
-mockall = { version = "0.12" }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+mockall = { version = "0.13" }
+tracing-subscriber = { version = "0.3.18", features = [
+    "env-filter",
+] }
 tracing-test = "0.2.4"
