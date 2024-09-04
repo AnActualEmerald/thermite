@@ -4,13 +4,13 @@ use crate::model::InstalledMod;
 use crate::model::Manifest;
 use crate::model::Mod;
 
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::fmt::Debug;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::LazyLock;
 
 use tracing::trace;
 use tracing::{debug, error};
@@ -228,8 +228,9 @@ fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<Install
     }
 }
 
-pub static RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap());
+lazy_static! {
+    pub static ref RE: Regex = Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap();
+}
 
 /// Returns the parts of a `author-name-X.Y.Z` string in (`author`, `name`, `version`) order
 ///
@@ -304,10 +305,7 @@ pub(crate) mod steam {
 //#[deprecated(since = "0.8.0", note = "Northstar Proton is no longer required")]
 pub(crate) mod proton {
     use flate2::read::GzDecoder;
-    use std::{
-        io::{Read, Write},
-        path::Path,
-    };
+    use std::{io::{Read, Write}, path::Path};
     use tar::Archive;
     use tracing::debug;
 
@@ -349,7 +347,7 @@ pub(crate) mod proton {
 
     /// Extract the NorthstarProton tarball into a given directory.
     /// Only supports extracting to a filesystem path.
-    ///
+    /// 
     /// # Errors
     /// * IO errors
     pub fn install_ns_proton(archive: impl Read, dest: impl AsRef<Path>) -> Result<()> {
@@ -367,16 +365,17 @@ pub(crate) mod proton {
 
         use super::latest_release;
 
+
         #[test]
         fn get_latest_proton_version() {
             let res = latest_release();
             assert!(res.is_ok());
+            
         }
 
         #[test]
         fn extract_proton() {
-            let dir =
-                TempDir::create(std::env::temp_dir().join("NSPROTON_TEST")).expect("temp dir");
+            let dir = TempDir::create(std::env::temp_dir().join("NSPROTON_TEST")).expect("temp dir");
             let archive = include_bytes!("test_media/NorthstarProton8-28.tar.gz");
             let cursor = Cursor::new(archive);
             let res = super::install_ns_proton(cursor, &dir);
@@ -384,10 +383,7 @@ pub(crate) mod proton {
 
             let extracted = dir.join("NorthstarProton8-28.txt");
             assert!(extracted.exists());
-            assert_eq!(
-                std::fs::read_to_string(extracted).expect("read file"),
-                "The real proton was too big to use as test media\n"
-            );
+            assert_eq!(std::fs::read_to_string(extracted).expect("read file"), "The real proton was too big to use as test media\n");
         }
     }
 }
