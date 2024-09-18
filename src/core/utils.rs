@@ -4,13 +4,13 @@ use crate::model::InstalledMod;
 use crate::model::Manifest;
 use crate::model::Mod;
 
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::fmt::Debug;
 use std::fs;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use tracing::trace;
 use tracing::{debug, error};
@@ -228,10 +228,8 @@ fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<Install
     }
 }
 
-lazy_static! {
-    pub static ref RE: Regex =
-        Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").expect("lazy compile regex");
-}
+pub static RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap());
 
 /// Returns the parts of a `author-name-X.Y.Z` string in (`author`, `name`, `version`) order
 ///
