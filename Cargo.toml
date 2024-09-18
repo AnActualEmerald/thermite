@@ -2,6 +2,7 @@
 name = "libthermite"
 version = "0.8.1" # managed by release.sh
 edition = "2021"
+rust-version = "1.80"
 description = "Crate for managing Northstar mods"
 license = "MIT"
 repository = "https://forge.greenboi.me/Emerald/thermite"
@@ -20,7 +21,6 @@ required-features = ["steam"]
 [dependencies]
 flate2 = { version = "^1.0", optional = true , default-features = false }
 json5 = "^0.4"
-lazy_static = "^1.4"
 regex = { default-features = false, features=["unicode-perl"], version = "^1.10" }
 serde = { version = "^1.0", features = ["serde_derive"], default-features = false }
 serde_json = "^1.0"
