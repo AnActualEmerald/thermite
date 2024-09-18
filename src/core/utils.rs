@@ -229,7 +229,7 @@ fn get_submods(manifest: &Manifest, dir: impl AsRef<Path>) -> Option<Vec<Install
 }
 
 pub static RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").unwrap());
+    LazyLock::new(|| Regex::new(r"^(\w+)-(\w+)-(\d+\.\d+\.\d+)$").expect("regex"));
 
 /// Returns the parts of a `author-name-X.Y.Z` string in (`author`, `name`, `version`) order
 ///
