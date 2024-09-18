@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.2] - 2024-09-18
+
+### Miscellaneous Tasks
+
+- Update `zip` requirement to ^2.2
+- Stricter clippy lints
+- Replace `lazy_static` with `LazyLock` (#12)
+
 ## [0.8.1] - 2024-04-21
 
 ### Bug Fixes
