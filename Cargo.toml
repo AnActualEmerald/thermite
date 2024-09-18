@@ -2,6 +2,7 @@
 name = "libthermite"
 version = "0.8.1" # managed by release.sh
 edition = "2021"
+rust-version = "1.80"
 description = "Crate for managing Northstar mods"
 license = "MIT"
 repository = "https://forge.greenboi.me/Emerald/thermite"
