@@ -35,7 +35,10 @@ where
     let res = ureq::get(url.as_ref()).call()?;
 
     let file_size = res
-        .header("Content-Length")
+        .headers()
+        .get("Content-Length")
+        .map(|header| header.to_str())
+        .transpose()?
         .unwrap_or_else(|| {
             warn!("Response missing 'Content-Length' header");
             "0"
@@ -46,7 +49,7 @@ where
     //start download in chunks
     let mut downloaded: u64 = 0;
     let mut buffer = [0; CHUNK_SIZE];
-    let mut body = res.into_reader();
+    let mut body = res.into_body().into_reader();
     debug!("Starting download from {}", url.as_ref());
 
     while let Ok(n) = body.read(&mut buffer) {
@@ -93,18 +96,14 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 /// # Params
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
-/// * `extract_dir` - directory to extract to before installing. Defaults to a temp directory in `target_dir`
-/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with `ThermiteError::SanityError` if this returns `false`
-///     - takes `File` of the zip file
+/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns `false`
+///     - takes [File] of the zip file
 ///     - returns `bool`
 ///
-/// `target_dir` will be treated as the root of the `mods` directory in the mod file
+/// `target_dir` will be
 ////// # Errors
 /// * IO Errors
-/// * Misformatted mods (typically missing the `mods` directory)
 ///
-/// # Panics
-/// This function will panic if it is unable to get the current system time
 pub fn install_with_sanity<T, F>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -116,11 +115,11 @@ where
     F: FnOnce(&T) -> Result<(), Box<dyn Error + Send + Sync + 'static>>,
 {
     if let Err(e) = sanity_check(&zip_file) {
-        return Err(ThermiteError::SanityError(e));
+        return Err(ThermiteError::Sanity(e));
     }
 
     if !validate_modstring(mod_string.as_ref()) {
-        return Err(ThermiteError::NameError(mod_string.as_ref().into()));
+        return Err(ThermiteError::Name(mod_string.as_ref().into()));
     }
 
     let path = target_dir.as_ref().join(mod_string.as_ref());
@@ -129,6 +128,18 @@ where
     Ok(path)
 }
 
+/// Wraps [install_with_sanity]
+/// # Params
+/// * `zip_file` - compressed mod file
+/// * `target_dir` - directory to install to
+///
+/// `target_dir` will be treated as the root of the `mods` directory in the mod file
+////// # Errors
+/// * IO Errors
+/// * Misformatted mods (typically missing the `mods` directory)
+///
+/// # Panics
+/// This function will panic if it is unable to get the current system time
 pub fn install_mod<T>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -139,6 +150,11 @@ where
 {
     install_with_sanity(mod_string, zip_file, target_dir, |_| Ok(()))
 }
+
+// pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
+//     let target = dest.as_ref();
+//     let mut archive = ZipArchive::new(zip_file)?;
+// }
 
 /// Install N* to the provided path
 ///
@@ -170,7 +186,7 @@ pub fn install_northstar(zip_file: impl Read + Seek, game_path: impl AsRef<Path>
 
         //This should work fine for N* because the dir structure *should* always be the same
         if f.enclosed_name()
-            .ok_or_else(|| ThermiteError::UnknownError("File missing enclosed name".into()))?
+            .ok_or_else(|| ThermiteError::Unknown("File missing enclosed name".into()))?
             .starts_with("Northstar")
         {
             let out = target.join(
@@ -311,12 +327,12 @@ mod test {
     fn fail_insanity() {
         let archive = MockArchive::new();
         let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| {
-            Err(Box::new(ThermiteError::UnknownError("uh oh".into())))
+            Err(Box::new(ThermiteError::Unknown("uh oh".into())))
         });
 
         assert!(res.is_err());
         match res {
-            Err(ThermiteError::SanityError(_)) => {}
+            Err(ThermiteError::Sanity(_)) => {}
             _ => panic!(),
         }
     }
@@ -326,7 +342,7 @@ mod test {
         let archive = MockArchive::new();
         let res = install_mod("invalid", archive, ".");
 
-        if let Err(ThermiteError::NameError(name)) = res {
+        if let Err(ThermiteError::Name(name)) = res {
             assert_eq!(name, "invalid");
         }
     }
