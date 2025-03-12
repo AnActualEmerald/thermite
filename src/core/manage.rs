@@ -100,9 +100,7 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 /// * `mod_string` - the full modstring of the mod being installed
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
-/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns `false`
-///     - takes [File] of the zip file
-///     - returns `bool`
+/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns [Result::Err]
 ///
 ////// # Errors
 /// * IO Errors
@@ -151,39 +149,55 @@ where
 
 /// Install only the N* files needed for a profile to the provided path
 ///
+/// Currently installs:
+/// - Northstar.dll
+/// - R2Northstar/mods
+/// - R2Northstar/plugins
+///
+/// The result will look like this:
+/// ```text
+///dest/
+///├── Northstar.dll
+///├── mods/
+///└── plugins/
+/// ```
+///
 /// # Errors
 /// * IO errors
 ///
 /// # Panics
 /// - Malformed ZIP archive
 pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
-    const PROFILE_FILES: [&str; 3] = ["Northstar.dll", "R2Northstar/mods", "R2Northstar/plugins"];
-
     let target = dest.as_ref();
     let mut archive = ZipArchive::new(zip_file)?;
 
     for i in 0..archive.len() {
         let mut f = archive.by_index(i)?;
 
-        let 
-        let Ok(name) = f
-            .enclosed_name()
-            .as_ref()
-            .ok_or_else(|| ThermiteError::Unknown("File missing enclosed name".into()))?
-            .strip_prefix("Northstar")
-        else {
+        let Some(enclosed) = f.enclosed_name() else {
+            return Err(ThermiteError::Unknown(format!(
+                "File {} missing enclosed name",
+                f.name()
+            )));
+        };
+        let Ok(name) = enclosed.strip_prefix("Northstar") else {
+            trace!("File wasn't in the Northstar directory");
             continue;
         };
 
-        if !PROFILE_FILES.iter().any(|file| name.starts_with(*file)) {
-            trace!("Skip file not in profile list");
+        let name = if name.ends_with("Northstar.dll") {
+            name
+        } else if name.starts_with("R2Northstar") {
+            name.strip_prefix("R2Northstar")
+                .expect("R2Northstar prefix")
+        } else {
+            debug!("Skipping file '{}' for profile install", name.display());
             continue;
-        }
+        };
 
-        //This should work fine for N* because the dir structure *should* always be the same
-        let out = target.join(name.strip_prefix("Northstar").expect("Nortstar prefix"));
+        let out = target.join(name);
 
-        if (*f.name()).ends_with('/') {
+        if f.is_dir() {
             trace!("Create directory {}", f.name());
             fs::create_dir_all(target.join(f.name()))?;
             continue;
@@ -202,7 +216,7 @@ pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Pa
         io::copy(&mut f, &mut outfile)?;
     }
 
-    todo!();
+    Ok(())
 }
 
 /// Install N* to the provided path
@@ -447,5 +461,28 @@ mod test {
         } else {
             panic!("Install failed with {:?}", res);
         }
+    }
+
+    #[test]
+    fn northstar_profile() {
+        let mut cursor = Cursor::new(TEST_NS_ARCHIVE);
+        let path = TempDir::create("./northstar_profile_test").expect("Create temp dir");
+        std::fs::create_dir_all(&path).expect("create dir");
+        let res = install_northstar_profile(&mut cursor, &path);
+
+        assert!(res.is_ok());
+
+        assert!(
+            path.join("Northstar.dll").try_exists().unwrap(),
+            "Northstar.dll should exist"
+        );
+
+        assert!(
+            path.join("mods")
+                .join("Northstar.Client")
+                .try_exists()
+                .unwrap(),
+            "Northstar client mod should exist"
+        );
     }
 }
