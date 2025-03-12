@@ -10,7 +10,7 @@ use crate::error::{Result, ThermiteError};
 
 use zip::ZipArchive;
 
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace, warn, Instrument};
 
 use super::utils::validate_modstring;
 
@@ -66,7 +66,7 @@ where
     Ok(downloaded)
 }
 
-/// Wrapper for calling `download_with_progress` without a progress bar
+/// Wrapper for calling [download_with_progress] without a progress bar
 /// # Params
 /// * `output` - Writer to write the data to
 /// * `url` - Url to download from
@@ -93,17 +93,19 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 }
 
 /// Install a mod to a directory
+///
+/// The directory will be `target_dir/mod_string`
+///
 /// # Params
+/// * `mod_string` - the full modstring of the mod being installed
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
 /// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns `false`
 ///     - takes [File] of the zip file
 ///     - returns `bool`
 ///
-/// `target_dir` will be
 ////// # Errors
 /// * IO Errors
-///
 pub fn install_with_sanity<T, F>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -128,18 +130,14 @@ where
     Ok(path)
 }
 
-/// Wraps [install_with_sanity]
+/// Calls [install_with_sanity] with an empty sanity check
 /// # Params
+/// * `mod_string` - the full mod string of the mod being installed
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
 ///
-/// `target_dir` will be treated as the root of the `mods` directory in the mod file
 ////// # Errors
 /// * IO Errors
-/// * Misformatted mods (typically missing the `mods` directory)
-///
-/// # Panics
-/// This function will panic if it is unable to get the current system time
 pub fn install_mod<T>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -151,10 +149,61 @@ where
     install_with_sanity(mod_string, zip_file, target_dir, |_| Ok(()))
 }
 
-// pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
-//     let target = dest.as_ref();
-//     let mut archive = ZipArchive::new(zip_file)?;
-// }
+/// Install only the N* files needed for a profile to the provided path
+///
+/// # Errors
+/// * IO errors
+///
+/// # Panics
+/// - Malformed ZIP archive
+pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
+    const PROFILE_FILES: [&str; 3] = ["Northstar.dll", "R2Northstar/mods", "R2Northstar/plugins"];
+
+    let target = dest.as_ref();
+    let mut archive = ZipArchive::new(zip_file)?;
+
+    for i in 0..archive.len() {
+        let mut f = archive.by_index(i)?;
+
+        let 
+        let Ok(name) = f
+            .enclosed_name()
+            .as_ref()
+            .ok_or_else(|| ThermiteError::Unknown("File missing enclosed name".into()))?
+            .strip_prefix("Northstar")
+        else {
+            continue;
+        };
+
+        if !PROFILE_FILES.iter().any(|file| name.starts_with(*file)) {
+            trace!("Skip file not in profile list");
+            continue;
+        }
+
+        //This should work fine for N* because the dir structure *should* always be the same
+        let out = target.join(name.strip_prefix("Northstar").expect("Nortstar prefix"));
+
+        if (*f.name()).ends_with('/') {
+            trace!("Create directory {}", f.name());
+            fs::create_dir_all(target.join(f.name()))?;
+            continue;
+        } else if let Some(p) = out.parent() {
+            fs::create_dir_all(p)?;
+        }
+
+        let mut outfile = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&out)?;
+
+        trace!("Write file {}", out.display());
+
+        io::copy(&mut f, &mut outfile)?;
+    }
+
+    todo!();
+}
 
 /// Install N* to the provided path
 ///
