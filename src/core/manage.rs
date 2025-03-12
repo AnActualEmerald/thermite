@@ -10,7 +10,7 @@ use crate::error::{Result, ThermiteError};
 
 use zip::ZipArchive;
 
-use tracing::{debug, trace, warn, Instrument};
+use tracing::{debug, trace, warn};
 
 use super::utils::validate_modstring;
 
@@ -379,9 +379,8 @@ mod test {
 
         let res = download(mock_writer, TEST_URL);
         assert!(res.is_ok());
-        res.map(|size| {
+        res.inspect(|&size| {
             assert_eq!(size, TEST_SIZE_BYTES);
-            size
         })
         .unwrap();
     }
