@@ -280,23 +280,27 @@ pub(crate) mod steam {
     /// Returns the path to the Steam installation if it exists
     #[must_use]
     #[inline]
-    pub fn steam_dir() -> Option<PathBuf> {
-        SteamDir::locate().map(|v| v.path)
+    pub fn steam_dir() -> Result<PathBuf, steamlocate::Error> {
+        SteamDir::locate().map(|dir| dir.path().to_path_buf())
     }
 
     /// Returns paths to all known Steam libraries
     #[must_use]
-    pub fn steam_libraries() -> Option<Vec<PathBuf>> {
-        let mut steamdir = SteamDir::locate()?;
-        let folders = steamdir.libraryfolders();
-        Some(folders.paths.clone())
+    pub fn steam_libraries() -> Result<Vec<PathBuf>, steamlocate::Error> {
+        SteamDir::locate()?.library_paths()
     }
 
     /// Returns the path to the Titanfall installation if it exists
     #[must_use]
-    pub fn titanfall() -> Option<PathBuf> {
-        let mut steamdir = SteamDir::locate()?;
-        Some(steamdir.app(&TITANFALL2_STEAM_ID)?.path.clone())
+    pub fn titanfall2_dir() -> Result<PathBuf, steamlocate::Error> {
+        let steamdir = SteamDir::locate()?;
+        let Some((app, lib)) = steamdir.find_app(TITANFALL2_STEAM_ID)? else {
+            return Err(steamlocate::Error::MissingExpectedApp {
+                app_id: TITANFALL2_STEAM_ID,
+            });
+        };
+
+        Ok(lib.resolve_app_dir(&app))
     }
 }
 
