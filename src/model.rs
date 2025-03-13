@@ -1,14 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap},
     hash::{Hash, Hasher},
 };
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{debug, error};
 
 use crate::{error::ThermiteError, CORE_MODS};
 
@@ -110,7 +109,6 @@ pub struct Manifest {
 
 /// Represents an enabledmods.json file. Core mods will default to `true` if not present when deserializing.
 ///
-/// Automatically writes any changes made when dropped (call `dont_save` to disable)
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnabledMods {
     #[serde(rename = "Northstar.Client", default = "default_mod_state")]
@@ -121,14 +119,9 @@ pub struct EnabledMods {
     pub servers: bool,
     #[serde(flatten)]
     pub mods: BTreeMap<String, bool>,
-    ///Hash of the file as it was loaded
-    #[serde(skip)]
-    hash: u64,
     ///Path to the file to read & write
     #[serde(skip)]
     path: Option<PathBuf>,
-    #[serde(skip)]
-    do_save: bool,
 }
 
 fn default_mod_state() -> bool {
@@ -151,33 +144,7 @@ impl Default for EnabledMods {
             custom: true,
             servers: true,
             mods: BTreeMap::new(),
-            hash: 0,
             path: None,
-            do_save: true,
-        }
-    }
-}
-
-impl Drop for EnabledMods {
-    fn drop(&mut self) {
-        if let Some(path) = self.path.as_ref() {
-            let hash = {
-                let mut hasher = DefaultHasher::new();
-                self.hash(&mut hasher);
-                hasher.finish()
-            };
-
-            if self.do_save && hash != self.hash {
-                if let Err(e) = self.save() {
-                    error!(
-                        "Encountered error while saving enabled_mods.json to {}:\n {}",
-                        path.display(),
-                        e
-                    );
-                } else {
-                    debug!("Wrote file at {}", path.display());
-                }
-            }
         }
     }
 }
@@ -196,21 +163,11 @@ impl EnabledMods {
 
     /// Returns a default `EnabledMods` with the path property set
     pub fn default_with_path(path: impl AsRef<Path>) -> Self {
-        let mut s = Self::default();
-        s.path = Some(path.as_ref().to_path_buf());
-        s
+        Self {
+            path: Some(path.as_ref().to_path_buf()),
+            ..Default::default()
+        }
     }
-
-    /// Don't attempt to write the file when dropped
-    pub fn dont_save(&mut self) {
-        self.do_save = false;
-    }
-
-    /// Do attempt to write the file when dropped
-    pub fn do_save(&mut self) {
-        self.do_save = true;
-    }
-
     /// Saves the file using the path it was loaded from
     ///
     /// # Errors
@@ -297,27 +254,22 @@ pub struct InstalledMod {
     pub path: PathBuf,
 }
 
-/// [InstalledMod]s are ordered by their author, then manifest name, then mod.json name
 impl PartialOrd for InstalledMod {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.author.partial_cmp(&other.author) {
-            Some(std::cmp::Ordering::Equal) => {
-                match self.manifest.name.partial_cmp(&other.manifest.name) {
-                    Some(std::cmp::Ordering::Equal) => {
-                        self.mod_json.name.partial_cmp(&other.mod_json.name)
-                    }
-                    ord => ord,
-                }
-            }
-            ord => ord,
-        }
+        Some(self.cmp(other))
     }
 }
 
+/// [InstalledMod]s are ordered by their author, then manifest name, then mod.json name
 impl Ord for InstalledMod {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(&other)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        match self.author.cmp(&other.author) {
+            std::cmp::Ordering::Equal => match self.manifest.name.cmp(&other.manifest.name) {
+                std::cmp::Ordering::Equal => self.mod_json.name.cmp(&other.mod_json.name),
+                ord => ord,
+            },
+            ord => ord,
+        }
     }
 }
 
@@ -404,13 +356,14 @@ mod test {
     }
 
     #[test]
-    fn save_enabled_mods_on_drop() {
+    fn save_enabled_mods() {
         let dir =
             TempDir::create("./test_autosave_enabled_mods").expect("Unable to create temp dir");
         let path = dir.join("enabled_mods.json");
         {
             let mut mods = EnabledMods::default_with_path(&path);
             mods.set("TestMod", false);
+            mods.save().expect("Write enabledmods.json");
         }
 
         let mods = EnabledMods::load(&path);
@@ -422,46 +375,6 @@ mod test {
         let test_mod = mods.unwrap().get("TestMod");
         assert!(test_mod.is_some());
         // this value should be false, so we assert the inverse
-        assert!(!test_mod.unwrap());
-    }
-
-    #[test]
-    fn disable_enabled_mods_autosave() {
-        let dir = TempDir::create("./test_disable_autosave_enabled_mods")
-            .expect("Unable to create temp dir");
-        let path = dir.join("enabled_mods.json");
-        {
-            let mut mods = EnabledMods::default_with_path(&path);
-            mods.set("TestMod", false);
-            mods.dont_save();
-        }
-
-        let mods = EnabledMods::load(&path);
-
-        assert!(mods.is_err());
-    }
-
-    #[test]
-    fn enabled_mods_manual_save() {
-        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
-        let path = dir.join("enabled_mods.json");
-        {
-            let mut mods = EnabledMods::default();
-            mods.set("TestMod", false);
-            mods.dont_save();
-            mods.save_with_path(&path)
-                .expect("Unable to save enabled mods");
-        }
-
-        let mods = EnabledMods::load(&path);
-
-        if let Err(e) = mods {
-            panic!("Failed to load enabled mods: {e}");
-        }
-
-        let test_mod = mods.unwrap().get("TestMod");
-
-        assert!(test_mod.is_some());
         assert!(!test_mod.unwrap());
     }
 }
