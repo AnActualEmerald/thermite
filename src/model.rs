@@ -289,12 +289,36 @@ impl EnabledMods {
 }
 
 /// Represents an installed package
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstalledMod {
     pub manifest: Manifest,
     pub mod_json: ModJSON,
     pub author: String,
     pub path: PathBuf,
+}
+
+/// [InstalledMod]s are ordered by their author, then manifest name, then mod.json name
+impl PartialOrd for InstalledMod {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.author.partial_cmp(&other.author) {
+            Some(std::cmp::Ordering::Equal) => {
+                match self.manifest.name.partial_cmp(&other.manifest.name) {
+                    Some(std::cmp::Ordering::Equal) => {
+                        self.mod_json.name.partial_cmp(&other.mod_json.name)
+                    }
+                    ord => ord,
+                }
+            }
+            ord => ord,
+        }
+    }
+}
+
+impl Ord for InstalledMod {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(&other)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }
 }
 
 #[cfg(test)]
