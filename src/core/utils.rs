@@ -338,7 +338,7 @@ pub(crate) mod proton {
     }
 
     /// Convinience function for downloading a given tag from the NorthstarProton repo.
-    /// If you have a URL already, just use `thermite::manage::download`
+    /// If you have a URL already, just use [crate::core::manage::download]
     pub fn download_ns_proton(tag: impl AsRef<str>, output: impl Write) -> Result<u64> {
         let url = format!(
             "{}download/{}/NorthstarProton{}.tar.gz",

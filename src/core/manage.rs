@@ -66,7 +66,7 @@ where
     Ok(downloaded)
 }
 
-/// Wrapper for calling `download_with_progress` without a progress bar
+/// Wrapper for calling [download_with_progress] without a progress bar
 /// # Params
 /// * `output` - Writer to write the data to
 /// * `url` - Url to download from
@@ -93,17 +93,17 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 }
 
 /// Install a mod to a directory
+///
+/// The directory will be `target_dir/mod_string`
+///
 /// # Params
+/// * `mod_string` - the full modstring of the mod being installed
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
-/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns `false`
-///     - takes [File] of the zip file
-///     - returns `bool`
+/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns [Result::Err]
 ///
-/// `target_dir` will be
 ////// # Errors
 /// * IO Errors
-///
 pub fn install_with_sanity<T, F>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -128,18 +128,14 @@ where
     Ok(path)
 }
 
-/// Wraps [install_with_sanity]
+/// Calls [install_with_sanity] with an empty sanity check
 /// # Params
+/// * `mod_string` - the full mod string of the mod being installed
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
 ///
-/// `target_dir` will be treated as the root of the `mods` directory in the mod file
 ////// # Errors
 /// * IO Errors
-/// * Misformatted mods (typically missing the `mods` directory)
-///
-/// # Panics
-/// This function will panic if it is unable to get the current system time
 pub fn install_mod<T>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -151,10 +147,77 @@ where
     install_with_sanity(mod_string, zip_file, target_dir, |_| Ok(()))
 }
 
-// pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
-//     let target = dest.as_ref();
-//     let mut archive = ZipArchive::new(zip_file)?;
-// }
+/// Install only the N* files needed for a profile to the provided path
+///
+/// Currently installs:
+/// - Northstar.dll
+/// - R2Northstar/mods
+/// - R2Northstar/plugins
+///
+/// The result will look like this:
+/// ```text
+///dest/
+///├── Northstar.dll
+///├── mods/
+///└── plugins/
+/// ```
+///
+/// # Errors
+/// * IO errors
+///
+/// # Panics
+/// - Malformed ZIP archive
+pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
+    let target = dest.as_ref();
+    let mut archive = ZipArchive::new(zip_file)?;
+
+    for i in 0..archive.len() {
+        let mut f = archive.by_index(i)?;
+
+        let Some(enclosed) = f.enclosed_name() else {
+            return Err(ThermiteError::Unknown(format!(
+                "File {} missing enclosed name",
+                f.name()
+            )));
+        };
+        let Ok(name) = enclosed.strip_prefix("Northstar") else {
+            trace!("File wasn't in the Northstar directory");
+            continue;
+        };
+
+        let name = if name.ends_with("Northstar.dll") {
+            name
+        } else if name.starts_with("R2Northstar") {
+            name.strip_prefix("R2Northstar")
+                .expect("R2Northstar prefix")
+        } else {
+            debug!("Skipping file '{}' for profile install", name.display());
+            continue;
+        };
+
+        let out = target.join(name);
+
+        if f.is_dir() {
+            trace!("Create directory {}", f.name());
+            fs::create_dir_all(target.join(f.name()))?;
+            continue;
+        } else if let Some(p) = out.parent() {
+            fs::create_dir_all(p)?;
+        }
+
+        let mut outfile = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&out)?;
+
+        trace!("Write file {}", out.display());
+
+        io::copy(&mut f, &mut outfile)?;
+    }
+
+    Ok(())
+}
 
 /// Install N* to the provided path
 ///
@@ -316,9 +379,8 @@ mod test {
 
         let res = download(mock_writer, TEST_URL);
         assert!(res.is_ok());
-        res.map(|size| {
+        res.inspect(|&size| {
             assert_eq!(size, TEST_SIZE_BYTES);
-            size
         })
         .unwrap();
     }
@@ -398,5 +460,28 @@ mod test {
         } else {
             panic!("Install failed with {:?}", res);
         }
+    }
+
+    #[test]
+    fn northstar_profile() {
+        let mut cursor = Cursor::new(TEST_NS_ARCHIVE);
+        let path = TempDir::create("./northstar_profile_test").expect("Create temp dir");
+        std::fs::create_dir_all(&path).expect("create dir");
+        let res = install_northstar_profile(&mut cursor, &path);
+
+        assert!(res.is_ok());
+
+        assert!(
+            path.join("Northstar.dll").try_exists().unwrap(),
+            "Northstar.dll should exist"
+        );
+
+        assert!(
+            path.join("mods")
+                .join("Northstar.Client")
+                .try_exists()
+                .unwrap(),
+            "Northstar client mod should exist"
+        );
     }
 }
