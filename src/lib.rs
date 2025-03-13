@@ -42,7 +42,7 @@ pub mod prelude {
     #[cfg(all(target_os = "linux", feature = "proton"))]
     pub use crate::core::{download_ns_proton, install_ns_proton, latest_release};
     #[cfg(feature = "steam")]
-    pub use crate::core::{steam_dir, steam_libraries, titanfall};
+    pub use crate::core::{steam_dir, steam_libraries, titanfall2_dir};
     pub use crate::error::ThermiteError;
     pub use crate::CORE_MODS;
     pub use crate::TITANFALL2_STEAM_ID;
