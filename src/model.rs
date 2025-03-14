@@ -11,7 +11,7 @@ use std::{
 
 use crate::{error::ThermiteError, CORE_MODS};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct ModJSON {
     pub name: String,
@@ -96,7 +96,7 @@ impl AsRef<Self> for ModVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub struct Manifest {
     pub name: String,
     pub version_number: String,
@@ -108,7 +108,6 @@ pub struct Manifest {
 // enabledmods.json
 
 /// Represents an enabledmods.json file. Core mods will default to `true` if not present when deserializing.
-///
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnabledMods {
     #[serde(rename = "Northstar.Client", default = "default_mod_state")]
@@ -191,6 +190,10 @@ impl EnabledMods {
     ///
     /// # Errors
     /// - If there is an IO error
+    #[deprecated(
+        since = "0.9",
+        note = "prefer explicitly setting the path and then saving"
+    )]
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
         self.path = Some(path.as_ref().to_owned());
         self.save()
@@ -246,7 +249,7 @@ impl EnabledMods {
 }
 
 /// Represents an installed package
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct InstalledMod {
     pub manifest: Manifest,
     pub mod_json: ModJSON,
@@ -279,7 +282,7 @@ mod test {
 
     use crate::core::utils::TempDir;
 
-    use super::{EnabledMods, Manifest, ModJSON};
+    use super::{EnabledMods, InstalledMod, Manifest, ModJSON};
 
     const TEST_MOD_JSON: &str = r#"{
         "Name": "Test",
@@ -376,5 +379,91 @@ mod test {
         assert!(test_mod.is_some());
         // this value should be false, so we assert the inverse
         assert!(!test_mod.unwrap());
+    }
+
+    #[test]
+    fn mod_ordering_by_author() {
+        let author1 = "hello".to_string();
+        let author2 = "world".to_string();
+
+        let expected = author1.cmp(&author2);
+
+        let mod1 = InstalledMod {
+            author: author1,
+            ..Default::default()
+        };
+
+        let mod2 = InstalledMod {
+            author: author2,
+            ..Default::default()
+        };
+
+        assert_eq!(expected, mod1.cmp(&mod2));
+    }
+
+    #[test]
+    fn mod_ordering_by_manifest_name() {
+        let author = "foo".to_string();
+
+        let name1 = "hello".to_string();
+        let name2 = "world".to_string();
+
+        let expected = name1.cmp(&name2);
+
+        let mod1 = InstalledMod {
+            author: author.clone(),
+            manifest: Manifest {
+                name: name1,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mod2 = InstalledMod {
+            author: author.clone(),
+            manifest: Manifest {
+                name: name2,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(expected, mod1.cmp(&mod2));
+    }
+
+    #[test]
+    fn mod_ordering_by_mod_json_name() {
+        let author = "foo".to_string();
+        let manifest = Manifest {
+            name: "bar".to_string(),
+            ..Default::default()
+        };
+
+        let name1 = "hello".to_string();
+        let name2 = "world".to_string();
+
+        let expected = name1.cmp(&name2);
+
+        let mod1 = InstalledMod {
+            author: author.clone(),
+            manifest: manifest.clone(),
+            mod_json: ModJSON {
+                name: name1,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mod2 = InstalledMod {
+            author: author.clone(),
+            manifest: manifest,
+            mod_json: ModJSON {
+                name: name2,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(expected, mod1.cmp(&mod2));
     }
 }
