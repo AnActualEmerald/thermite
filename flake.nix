@@ -34,7 +34,7 @@
         };
       in
         pkgs.mkShell {
-          nativeBuildInputs = [pkgs.rustc];
+          # nativeBuildInputs = [pkgs.rustc];
           packages = with pkgs; [
             grcov
             (fenix.complete.withComponents [
