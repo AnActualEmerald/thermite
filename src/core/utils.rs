@@ -72,7 +72,7 @@ pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>,
             .as_ref()
             .split('-')
             .nth(1)
-            .ok_or_else(|| ThermiteError::DepError(dep.as_ref().into()))?;
+            .ok_or_else(|| ThermiteError::Dep(dep.as_ref().into()))?;
 
         if dep_name.to_lowercase() == "northstar" {
             debug!("Skip unfiltered Northstar dependency");
@@ -82,7 +82,7 @@ pub fn resolve_deps(deps: &[impl AsRef<str>], index: &[Mod]) -> Result<Vec<Mod>,
         if let Some(d) = index.iter().find(|f| f.name == dep_name) {
             valid.push(d.clone());
         } else {
-            return Err(ThermiteError::DepError(dep.as_ref().into()));
+            return Err(ThermiteError::Dep(dep.as_ref().into()));
         }
     }
     Ok(valid)
@@ -145,7 +145,7 @@ pub fn find_mods(dir: impl AsRef<Path>) -> Result<Vec<InstalledMod>, ThermiteErr
             );
             trace!("{:#?}", submods);
             let modstring =
-                parse_modstring(child.file_name().to_str().ok_or(ThermiteError::UTF8Error)?)?;
+                parse_modstring(child.file_name().to_str().ok_or(ThermiteError::UTF8)?)?;
             res.append(
                 &mut submods
                     .into_iter()
@@ -235,31 +235,31 @@ pub static RE: LazyLock<Regex> =
 ///
 /// # Errors
 ///
-/// Returns a `NameError` if the input string is not in the correct format
+/// Returns a [ThermiteError::Name] if the input string is not in the correct format
 pub fn parse_modstring(input: impl AsRef<str>) -> Result<ModString, ThermiteError> {
     debug!("Parsing modstring {}", input.as_ref());
     if let Some(captures) = RE.captures(input.as_ref()) {
         let author = captures
             .get(1)
-            .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
+            .ok_or_else(|| ThermiteError::Name(input.as_ref().into()))?
             .as_str()
             .to_owned();
 
         let name = captures
             .get(2)
-            .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
+            .ok_or_else(|| ThermiteError::Name(input.as_ref().into()))?
             .as_str()
             .to_owned();
 
         let version = captures
             .get(3)
-            .ok_or_else(|| ThermiteError::NameError(input.as_ref().into()))?
+            .ok_or_else(|| ThermiteError::Name(input.as_ref().into()))?
             .as_str()
             .to_owned();
 
         Ok((author, name, version))
     } else {
-        Err(ThermiteError::NameError(input.as_ref().into()))
+        Err(ThermiteError::Name(input.as_ref().into()))
     }
 }
 
@@ -280,23 +280,27 @@ pub(crate) mod steam {
     /// Returns the path to the Steam installation if it exists
     #[must_use]
     #[inline]
-    pub fn steam_dir() -> Option<PathBuf> {
-        SteamDir::locate().map(|v| v.path)
+    pub fn steam_dir() -> Result<PathBuf, steamlocate::Error> {
+        SteamDir::locate().map(|dir| dir.path().to_path_buf())
     }
 
     /// Returns paths to all known Steam libraries
     #[must_use]
-    pub fn steam_libraries() -> Option<Vec<PathBuf>> {
-        let mut steamdir = SteamDir::locate()?;
-        let folders = steamdir.libraryfolders();
-        Some(folders.paths.clone())
+    pub fn steam_libraries() -> Result<Vec<PathBuf>, steamlocate::Error> {
+        SteamDir::locate()?.library_paths()
     }
 
     /// Returns the path to the Titanfall installation if it exists
     #[must_use]
-    pub fn titanfall() -> Option<PathBuf> {
-        let mut steamdir = SteamDir::locate()?;
-        Some(steamdir.app(&TITANFALL2_STEAM_ID)?.path.clone())
+    pub fn titanfall2_dir() -> Result<PathBuf, steamlocate::Error> {
+        let steamdir = SteamDir::locate()?;
+        let Some((app, lib)) = steamdir.find_app(TITANFALL2_STEAM_ID)? else {
+            return Err(steamlocate::Error::MissingExpectedApp {
+                app_id: TITANFALL2_STEAM_ID,
+            });
+        };
+
+        Ok(lib.resolve_app_dir(&app))
     }
 }
 
@@ -310,6 +314,7 @@ pub(crate) mod proton {
     };
     use tar::Archive;
     use tracing::debug;
+    use ureq::ResponseExt;
 
     use crate::{
         core::manage::download,
@@ -325,18 +330,19 @@ pub(crate) mod proton {
     pub fn latest_release() -> Result<String> {
         let url = format!("{}latest", BASE_URL);
         let res = ureq::get(&url).call()?;
-        let location = res.get_url();
+        let location = res.get_uri();
         debug!("{url} redirected to {location}");
 
         Ok(location
+            .path()
             .split('/')
             .last()
-            .ok_or_else(|| ThermiteError::UnknownError("Malformed location URL".into()))?
+            .ok_or_else(|| ThermiteError::Unknown("Malformed location URL".into()))?
             .to_owned())
     }
 
     /// Convinience function for downloading a given tag from the NorthstarProton repo.
-    /// If you have a URL already, just use `thermite::manage::download`
+    /// If you have a URL already, just use [crate::core::manage::download]
     pub fn download_ns_proton(tag: impl AsRef<str>, output: impl Write) -> Result<u64> {
         let url = format!(
             "{}download/{}/NorthstarProton{}.tar.gz",
@@ -447,7 +453,7 @@ mod test {
         let test_folder = "parse_enabled_mods_test";
         let temp_dir = TempDir::create(test_folder).unwrap();
         fs::write(temp_dir.join("enabledmods.json"), b"invalid json").unwrap();
-        if let Err(ThermiteError::JsonError(_)) = get_enabled_mods(temp_dir) {
+        if let Err(ThermiteError::Json(_)) = get_enabled_mods(temp_dir) {
         } else {
             panic!("enabledmods.json should not be valid json");
         }
@@ -562,7 +568,7 @@ mod test {
         let test_string = "invalid";
         let res = parse_modstring(test_string);
 
-        if let Err(ThermiteError::NameError(name)) = res {
+        if let Err(ThermiteError::Name(name)) = res {
             assert_eq!(name, test_string);
         } else {
             panic!("Invalid mod string didn't error");

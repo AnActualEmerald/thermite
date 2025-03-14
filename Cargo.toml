@@ -30,16 +30,16 @@ required-features = [
 unwrap_used = "deny"
 
 [dependencies]
-flate2 = { version = "^1.0", optional = true, default-features = false }
+flate2 = { version = "^1.1", optional = true, default-features = false }
 json5 = "^0.4"
-regex = { default-features = false, features=["unicode-perl"], version = "^1.10" }
+regex = { default-features = false, features=["unicode-perl"], version = "^1.11" }
 serde = { version = "^1.0", features = ["serde_derive"], default-features = false }
 serde_json = "^1.0"
-steamlocate = { version = "^1", optional = true }
+steamlocate = { version = "^2", optional = true }
 tar = { version = "^0.4", optional = true }
-thiserror = "^1.0"
+thiserror = "^2.0"
 tracing = { default-features = false, version = "^0.1" }
-ureq = { version = "^2.6" }
+ureq = { version = "^3" }
 zip = { default-features = false, version = "^2.2", features = [
     "deflate",
 ] }

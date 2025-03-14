@@ -27,13 +27,22 @@
         packages = with pkgs; [cargo git-cliff rust-analyzer clippy];
       };
 
-      devShells.coverage =  let pkgs = import nixpkgs{ inherit system; overlays = [fenix-flake.overlays.default]; }; in pkgs.mkShell {
-        nativeBuildInputs = [pkgs.rustc];
-        packages = with pkgs; [ grcov (fenix.complete.withComponents [
-          "cargo"
-          "rustc"
-          "llvm-tools-preview"
-        ])];
-      };
+      devShells.coverage = let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [fenix-flake.overlays.default];
+        };
+      in
+        pkgs.mkShell {
+          # nativeBuildInputs = [pkgs.rustc];
+          packages = with pkgs; [
+            grcov
+            (fenix.complete.withComponents [
+              "cargo"
+              "rustc"
+              "llvm-tools-preview"
+            ])
+          ];
+        };
     });
 }

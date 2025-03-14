@@ -37,9 +37,9 @@ struct PackageVersion {
 /// * Unexpected response format from Thunderstore
 pub fn get_package_index() -> Result<Vec<Mod>, ThermiteError> {
     let raw = ureq::get("https://northstar.thunderstore.io/c/northstar/api/v1/package/")
-        .set("accept", "application/json")
+        .header("accept", "application/json")
         .call()?;
-    let parsed: Vec<PackageListing> = serde_json::from_str(&raw.into_string()?)?;
+    let parsed: Vec<PackageListing> = serde_json::from_reader(raw.into_body().into_reader())?;
     let index = map_response(&parsed);
 
     Ok(index)
@@ -129,7 +129,7 @@ mod test {
             _extra: HashMap::new(),
         }];
 
-        let expected = vec![Mod {
+        let expected = [Mod {
             name: "Foo".into(),
             author: "Bar".into(),
             latest: "0.1.0".into(),
@@ -154,6 +154,6 @@ mod test {
 
         let res = map_response(&test_data);
         assert!(!res.is_empty());
-        assert_eq!(res[0], expected[0]);
+        assert_eq!(&res[0], &expected[0]);
     }
 }

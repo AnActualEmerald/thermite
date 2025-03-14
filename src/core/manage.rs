@@ -35,7 +35,10 @@ where
     let res = ureq::get(url.as_ref()).call()?;
 
     let file_size = res
-        .header("Content-Length")
+        .headers()
+        .get("Content-Length")
+        .map(|header| header.to_str())
+        .transpose()?
         .unwrap_or_else(|| {
             warn!("Response missing 'Content-Length' header");
             "0"
@@ -46,7 +49,7 @@ where
     //start download in chunks
     let mut downloaded: u64 = 0;
     let mut buffer = [0; CHUNK_SIZE];
-    let mut body = res.into_reader();
+    let mut body = res.into_body().into_reader();
     debug!("Starting download from {}", url.as_ref());
 
     while let Ok(n) = body.read(&mut buffer) {
@@ -63,7 +66,7 @@ where
     Ok(downloaded)
 }
 
-/// Wrapper for calling `download_with_progress` without a progress bar
+/// Wrapper for calling [download_with_progress] without a progress bar
 /// # Params
 /// * `output` - Writer to write the data to
 /// * `url` - Url to download from
@@ -90,21 +93,17 @@ pub fn uninstall(mods: &[impl AsRef<Path>]) -> Result<()> {
 }
 
 /// Install a mod to a directory
+///
+/// The directory will be `target_dir/mod_string`
+///
 /// # Params
+/// * `mod_string` - the full modstring of the mod being installed
 /// * `zip_file` - compressed mod file
 /// * `target_dir` - directory to install to
-/// * `extract_dir` - directory to extract to before installing. Defaults to a temp directory in `target_dir`
-/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with `ThermiteError::SanityError` if this returns `false`
-///     - takes `File` of the zip file
-///     - returns `bool`
+/// * `sanity_check` - function that will be called before performing the installation. The operation will fail with [ThermiteError::Sanity] if this returns [Result::Err]
 ///
-/// `target_dir` will be treated as the root of the `mods` directory in the mod file
 ////// # Errors
 /// * IO Errors
-/// * Misformatted mods (typically missing the `mods` directory)
-///
-/// # Panics
-/// This function will panic if it is unable to get the current system time
 pub fn install_with_sanity<T, F>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -116,11 +115,11 @@ where
     F: FnOnce(&T) -> Result<(), Box<dyn Error + Send + Sync + 'static>>,
 {
     if let Err(e) = sanity_check(&zip_file) {
-        return Err(ThermiteError::SanityError(e));
+        return Err(ThermiteError::Sanity(e));
     }
 
     if !validate_modstring(mod_string.as_ref()) {
-        return Err(ThermiteError::NameError(mod_string.as_ref().into()));
+        return Err(ThermiteError::Name(mod_string.as_ref().into()));
     }
 
     let path = target_dir.as_ref().join(mod_string.as_ref());
@@ -129,6 +128,14 @@ where
     Ok(path)
 }
 
+/// Calls [install_with_sanity] with an empty sanity check
+/// # Params
+/// * `mod_string` - the full mod string of the mod being installed
+/// * `zip_file` - compressed mod file
+/// * `target_dir` - directory to install to
+///
+////// # Errors
+/// * IO Errors
 pub fn install_mod<T>(
     mod_string: impl AsRef<str>,
     zip_file: T,
@@ -138,6 +145,78 @@ where
     T: Read + Seek,
 {
     install_with_sanity(mod_string, zip_file, target_dir, |_| Ok(()))
+}
+
+/// Install only the N* files needed for a profile to the provided path
+///
+/// Currently installs:
+/// - Northstar.dll
+/// - R2Northstar/mods
+/// - R2Northstar/plugins
+///
+/// The result will look like this:
+/// ```text
+///dest/
+///├── Northstar.dll
+///├── mods/
+///└── plugins/
+/// ```
+///
+/// # Errors
+/// * IO errors
+///
+/// # Panics
+/// - Malformed ZIP archive
+pub fn install_northstar_profile(zip_file: impl Read + Seek, dest: impl AsRef<Path>) -> Result<()> {
+    let target = dest.as_ref();
+    let mut archive = ZipArchive::new(zip_file)?;
+
+    for i in 0..archive.len() {
+        let mut f = archive.by_index(i)?;
+
+        let Some(enclosed) = f.enclosed_name() else {
+            return Err(ThermiteError::Unknown(format!(
+                "File {} missing enclosed name",
+                f.name()
+            )));
+        };
+        let Ok(name) = enclosed.strip_prefix("Northstar") else {
+            trace!("File wasn't in the Northstar directory");
+            continue;
+        };
+
+        let name = if name.ends_with("Northstar.dll") {
+            name
+        } else if name.starts_with("R2Northstar") {
+            name.strip_prefix("R2Northstar")
+                .expect("R2Northstar prefix")
+        } else {
+            debug!("Skipping file '{}' for profile install", name.display());
+            continue;
+        };
+
+        let out = target.join(name);
+
+        if f.is_dir() {
+            trace!("Create directory {}", f.name());
+            fs::create_dir_all(target.join(f.name()))?;
+            continue;
+        } else if let Some(p) = out.parent() {
+            fs::create_dir_all(p)?;
+        }
+
+        let mut outfile = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&out)?;
+
+        trace!("Write file {}", out.display());
+
+        io::copy(&mut f, &mut outfile)?;
+    }
+
+    Ok(())
 }
 
 /// Install N* to the provided path
@@ -170,7 +249,7 @@ pub fn install_northstar(zip_file: impl Read + Seek, game_path: impl AsRef<Path>
 
         //This should work fine for N* because the dir structure *should* always be the same
         if f.enclosed_name()
-            .ok_or_else(|| ThermiteError::UnknownError("File missing enclosed name".into()))?
+            .ok_or_else(|| ThermiteError::Unknown("File missing enclosed name".into()))?
             .starts_with("Northstar")
         {
             let out = target.join(
@@ -300,9 +379,8 @@ mod test {
 
         let res = download(mock_writer, TEST_URL);
         assert!(res.is_ok());
-        res.map(|size| {
+        res.inspect(|&size| {
             assert_eq!(size, TEST_SIZE_BYTES);
-            size
         })
         .unwrap();
     }
@@ -311,12 +389,12 @@ mod test {
     fn fail_insanity() {
         let archive = MockArchive::new();
         let res = install_with_sanity("foo-bar-0.1.0", archive, ".", |_| {
-            Err(Box::new(ThermiteError::UnknownError("uh oh".into())))
+            Err(Box::new(ThermiteError::Unknown("uh oh".into())))
         });
 
         assert!(res.is_err());
         match res {
-            Err(ThermiteError::SanityError(_)) => {}
+            Err(ThermiteError::Sanity(_)) => {}
             _ => panic!(),
         }
     }
@@ -326,7 +404,7 @@ mod test {
         let archive = MockArchive::new();
         let res = install_mod("invalid", archive, ".");
 
-        if let Err(ThermiteError::NameError(name)) = res {
+        if let Err(ThermiteError::Name(name)) = res {
             assert_eq!(name, "invalid");
         }
     }
@@ -382,5 +460,28 @@ mod test {
         } else {
             panic!("Install failed with {:?}", res);
         }
+    }
+
+    #[test]
+    fn northstar_profile() {
+        let mut cursor = Cursor::new(TEST_NS_ARCHIVE);
+        let path = TempDir::create("./northstar_profile_test").expect("Create temp dir");
+        std::fs::create_dir_all(&path).expect("create dir");
+        let res = install_northstar_profile(&mut cursor, &path);
+
+        assert!(res.is_ok());
+
+        assert!(
+            path.join("Northstar.dll").try_exists().unwrap(),
+            "Northstar.dll should exist"
+        );
+
+        assert!(
+            path.join("mods")
+                .join("Northstar.Client")
+                .try_exists()
+                .unwrap(),
+            "Northstar client mod should exist"
+        );
     }
 }

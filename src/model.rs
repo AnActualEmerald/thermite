@@ -1,18 +1,17 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap},
     hash::{Hash, Hasher},
 };
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tracing::{debug, error};
 
 use crate::{error::ThermiteError, CORE_MODS};
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct ModJSON {
     pub name: String,
@@ -97,7 +96,7 @@ impl AsRef<Self> for ModVersion {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 pub struct Manifest {
     pub name: String,
     pub version_number: String,
@@ -109,8 +108,6 @@ pub struct Manifest {
 // enabledmods.json
 
 /// Represents an enabledmods.json file. Core mods will default to `true` if not present when deserializing.
-///
-/// Automatically writes any changes made when dropped (call `dont_save` to disable)
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct EnabledMods {
     #[serde(rename = "Northstar.Client", default = "default_mod_state")]
@@ -121,14 +118,9 @@ pub struct EnabledMods {
     pub servers: bool,
     #[serde(flatten)]
     pub mods: BTreeMap<String, bool>,
-    ///Hash of the file as it was loaded
-    #[serde(skip)]
-    hash: u64,
     ///Path to the file to read & write
     #[serde(skip)]
     path: Option<PathBuf>,
-    #[serde(skip)]
-    do_save: bool,
 }
 
 fn default_mod_state() -> bool {
@@ -151,33 +143,7 @@ impl Default for EnabledMods {
             custom: true,
             servers: true,
             mods: BTreeMap::new(),
-            hash: 0,
             path: None,
-            do_save: true,
-        }
-    }
-}
-
-impl Drop for EnabledMods {
-    fn drop(&mut self) {
-        if let Some(path) = self.path.as_ref() {
-            let hash = {
-                let mut hasher = DefaultHasher::new();
-                self.hash(&mut hasher);
-                hasher.finish()
-            };
-
-            if self.do_save && hash != self.hash {
-                if let Err(e) = self.save() {
-                    error!(
-                        "Encountered error while saving enabled_mods.json to {}:\n {}",
-                        path.display(),
-                        e
-                    );
-                } else {
-                    debug!("Wrote file at {}", path.display());
-                }
-            }
         }
     }
 }
@@ -196,21 +162,11 @@ impl EnabledMods {
 
     /// Returns a default `EnabledMods` with the path property set
     pub fn default_with_path(path: impl AsRef<Path>) -> Self {
-        let mut s = Self::default();
-        s.path = Some(path.as_ref().to_path_buf());
-        s
+        Self {
+            path: Some(path.as_ref().to_path_buf()),
+            ..Default::default()
+        }
     }
-
-    /// Don't attempt to write the file when dropped
-    pub fn dont_save(&mut self) {
-        self.do_save = false;
-    }
-
-    /// Do attempt to write the file when dropped
-    pub fn do_save(&mut self) {
-        self.do_save = true;
-    }
-
     /// Saves the file using the path it was loaded from
     ///
     /// # Errors
@@ -234,6 +190,10 @@ impl EnabledMods {
     ///
     /// # Errors
     /// - If there is an IO error
+    #[deprecated(
+        since = "0.9",
+        note = "prefer explicitly setting the path and then saving"
+    )]
     pub fn save_with_path(&mut self, path: impl AsRef<Path>) -> Result<(), ThermiteError> {
         self.path = Some(path.as_ref().to_owned());
         self.save()
@@ -289,12 +249,31 @@ impl EnabledMods {
 }
 
 /// Represents an installed package
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct InstalledMod {
     pub manifest: Manifest,
     pub mod_json: ModJSON,
     pub author: String,
     pub path: PathBuf,
+}
+
+impl PartialOrd for InstalledMod {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// [InstalledMod]s are ordered by their author, then manifest name, then mod.json name
+impl Ord for InstalledMod {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.author.cmp(&other.author) {
+            std::cmp::Ordering::Equal => match self.manifest.name.cmp(&other.manifest.name) {
+                std::cmp::Ordering::Equal => self.mod_json.name.cmp(&other.mod_json.name),
+                ord => ord,
+            },
+            ord => ord,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -303,7 +282,7 @@ mod test {
 
     use crate::core::utils::TempDir;
 
-    use super::{EnabledMods, Manifest, ModJSON};
+    use super::{EnabledMods, InstalledMod, Manifest, ModJSON};
 
     const TEST_MOD_JSON: &str = r#"{
         "Name": "Test",
@@ -380,13 +359,14 @@ mod test {
     }
 
     #[test]
-    fn save_enabled_mods_on_drop() {
+    fn save_enabled_mods() {
         let dir =
             TempDir::create("./test_autosave_enabled_mods").expect("Unable to create temp dir");
         let path = dir.join("enabled_mods.json");
         {
             let mut mods = EnabledMods::default_with_path(&path);
             mods.set("TestMod", false);
+            mods.save().expect("Write enabledmods.json");
         }
 
         let mods = EnabledMods::load(&path);
@@ -402,42 +382,88 @@ mod test {
     }
 
     #[test]
-    fn disable_enabled_mods_autosave() {
-        let dir = TempDir::create("./test_disable_autosave_enabled_mods")
-            .expect("Unable to create temp dir");
-        let path = dir.join("enabled_mods.json");
-        {
-            let mut mods = EnabledMods::default_with_path(&path);
-            mods.set("TestMod", false);
-            mods.dont_save();
-        }
+    fn mod_ordering_by_author() {
+        let author1 = "hello".to_string();
+        let author2 = "world".to_string();
 
-        let mods = EnabledMods::load(&path);
+        let expected = author1.cmp(&author2);
 
-        assert!(mods.is_err());
+        let mod1 = InstalledMod {
+            author: author1,
+            ..Default::default()
+        };
+
+        let mod2 = InstalledMod {
+            author: author2,
+            ..Default::default()
+        };
+
+        assert_eq!(expected, mod1.cmp(&mod2));
     }
 
     #[test]
-    fn enabled_mods_manual_save() {
-        let dir = TempDir::create("./test_save_enabled_mods").expect("Unable to create temp dir");
-        let path = dir.join("enabled_mods.json");
-        {
-            let mut mods = EnabledMods::default();
-            mods.set("TestMod", false);
-            mods.dont_save();
-            mods.save_with_path(&path)
-                .expect("Unable to save enabled mods");
-        }
+    fn mod_ordering_by_manifest_name() {
+        let author = "foo".to_string();
 
-        let mods = EnabledMods::load(&path);
+        let name1 = "hello".to_string();
+        let name2 = "world".to_string();
 
-        if let Err(e) = mods {
-            panic!("Failed to load enabled mods: {e}");
-        }
+        let expected = name1.cmp(&name2);
 
-        let test_mod = mods.unwrap().get("TestMod");
+        let mod1 = InstalledMod {
+            author: author.clone(),
+            manifest: Manifest {
+                name: name1,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
 
-        assert!(test_mod.is_some());
-        assert!(!test_mod.unwrap());
+        let mod2 = InstalledMod {
+            author: author.clone(),
+            manifest: Manifest {
+                name: name2,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(expected, mod1.cmp(&mod2));
+    }
+
+    #[test]
+    fn mod_ordering_by_mod_json_name() {
+        let author = "foo".to_string();
+        let manifest = Manifest {
+            name: "bar".to_string(),
+            ..Default::default()
+        };
+
+        let name1 = "hello".to_string();
+        let name2 = "world".to_string();
+
+        let expected = name1.cmp(&name2);
+
+        let mod1 = InstalledMod {
+            author: author.clone(),
+            manifest: manifest.clone(),
+            mod_json: ModJSON {
+                name: name1,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mod2 = InstalledMod {
+            author: author.clone(),
+            manifest: manifest,
+            mod_json: ModJSON {
+                name: name2,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(expected, mod1.cmp(&mod2));
     }
 }
