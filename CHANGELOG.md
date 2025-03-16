@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2025-03-16
+
+### Features
+
+- Add `northstar_install_profile` function to install just `Northsar.dll` and the core mods
+- Implement `PartialEq`, `Eq`, `PartialOrd`, and `Ord` for `InstalledMod`
+
+### Miscellaneous Tasks
+
+- Update dependencies
+- Update `steamlocate` requirement to `^2`
+- Update nix flake
+- Add docs badge to readme
+
+### Refactor
+
+- Remove autosave functionality from `EnabledMods`
+- Rename `titanfall()` to `titanfall2_dir()` for clarity
+
+### Testing
+
+- Add tests for `Ord` implementation on `InstalledMod`
+
 ## [0.8.2] - 2024-09-18
 
 ### Miscellaneous Tasks
