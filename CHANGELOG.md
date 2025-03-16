@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Update `steamlocate` requirement to `^2`
 - Update nix flake
 - Add docs badge to readme
+- Update release.yml
 
 ### Refactor
 
